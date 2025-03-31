@@ -9,6 +9,8 @@ namespace minecraft {
 
 class MainWindow : public QMainWindow
 {
+    Q_OBJECT
+
 public:
     MainWindow(QWidget *const parent = nullptr);
 

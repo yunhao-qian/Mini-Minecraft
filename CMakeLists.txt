@@ -43,6 +43,8 @@ set(PROJECT_SOURCES
     src/player_info_window.cpp
     src/shader_program.h
     src/shader_program.cpp
+    src/terrain.h
+    src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
 )

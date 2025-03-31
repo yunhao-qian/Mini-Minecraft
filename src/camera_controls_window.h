@@ -7,6 +7,8 @@ namespace minecraft {
 
 class CameraControlsWindow : public QWidget
 {
+    Q_OBJECT
+
 public:
     CameraControlsWindow(QWidget *const parent = nullptr);
 };
