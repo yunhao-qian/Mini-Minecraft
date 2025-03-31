@@ -29,6 +29,8 @@ FetchContent_MakeAvailable(glm)
 set(PROJECT_SOURCES
     src/main.cpp
     src/block_type.h
+    src/camera.h
+    src/camera.cpp
     src/camera_controls_window.h
     src/camera_controls_window.cpp
     src/direction.h
@@ -41,6 +43,8 @@ set(PROJECT_SOURCES
     src/player_info_display_data.h
     src/player_info_window.h
     src/player_info_window.cpp
+    src/pose.h
+    src/pose.cpp
     src/shader_program.h
     src/shader_program.cpp
     src/terrain.h
