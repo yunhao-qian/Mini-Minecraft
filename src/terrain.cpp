@@ -2,6 +2,11 @@
 
 #include <cstdint>
 
+minecraft::Terrain::Terrain(GLContext *const context)
+    : _context{context}
+    , _chunks{}
+{}
+
 auto minecraft::Terrain::getChunk(const int x, const int z) const -> const TerrainChunk *
 {
     return getChunk(*this, x, z);
@@ -18,8 +23,9 @@ auto minecraft::Terrain::getOrCreateChunk(const int x, const int z) -> TerrainCh
     if (const auto it{_chunks.find(key)}; it != _chunks.end()) {
         return it->second.get();
     }
-    const auto chunk{_chunks.emplace(key, std::make_unique<TerrainChunk>(key.first, key.second))
-                         .first->second.get()};
+    const auto chunk{
+        _chunks.emplace(key, std::make_unique<TerrainChunk>(_context, key.first, key.second))
+            .first->second.get()};
     if (const auto neighbor{getChunk(key.first + TerrainChunk::SizeX, key.second)};
         neighbor != nullptr) {
         chunk->setNeighbor(Direction::PositiveX, neighbor);
@@ -57,13 +63,6 @@ auto minecraft::Terrain::setBlockGlobal(const int x, const int y, const int z, c
 {
     const auto chunk{getOrCreateChunk(x, z)};
     chunk->setBlockLocal(x - chunk->minX(), y, z - chunk->minZ(), block);
-}
-
-auto minecraft::Terrain::prepareDraw() -> void
-{
-    for (const auto &[_, chunk] : _chunks) {
-        chunk->prepareDraw();
-    }
 }
 
 auto minecraft::Terrain::draw() -> void

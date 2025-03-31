@@ -47,6 +47,8 @@ set(PROJECT_SOURCES
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
+    src/vertex.h
+    src/vertex_array_helper.h
 )
 
 qt_add_executable(mini-minecraft

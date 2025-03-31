@@ -1,10 +1,27 @@
 #include "terrain_chunk.h"
 
-minecraft::TerrainChunk::TerrainChunk(const int minX, const int minZ)
-    : _minX{minX}
+minecraft::TerrainChunkDrawDelegateBase::TerrainChunkDrawDelegateBase(const TerrainChunk *const chunk)
+    : _chunk{chunk}
+    , _dirty{true}
+{}
+
+auto minecraft::TerrainChunkDrawDelegateBase::isDirty() const -> bool
+{
+    return _dirty;
+}
+
+auto minecraft::TerrainChunkDrawDelegateBase::markDirty() -> void
+{
+    _dirty = true;
+}
+
+minecraft::TerrainChunk::TerrainChunk(GLContext *const context, const int minX, const int minZ)
+    : _context{context}
+    , _minX{minX}
     , _minZ{minZ}
     , _blocks{}
     , _neighbors{}
+    , _drawDelegate{nullptr}
 {}
 
 auto minecraft::TerrainChunk::minX() const -> int
@@ -29,6 +46,15 @@ auto minecraft::TerrainChunk::setBlockLocal(const int x,
                                             const BlockType block) -> void
 {
     _blocks[x][y][z] = block;
+
+    if (_drawDelegate != nullptr) {
+        _drawDelegate->markDirty();
+    }
+    for (const auto neighbor : _neighbors) {
+        if (neighbor != nullptr && neighbor->_drawDelegate != nullptr) {
+            neighbor->_drawDelegate->markDirty();
+        }
+    }
 }
 
 auto minecraft::TerrainChunk::getNeighbor(const Direction direction) const -> const TerrainChunk *
@@ -45,6 +71,13 @@ auto minecraft::TerrainChunk::setNeighbor(const Direction direction, TerrainChun
     -> void
 {
     *getNeighborPointer(*this, direction) = chunk;
+
+    if (_drawDelegate != nullptr) {
+        _drawDelegate->markDirty();
+    }
+    if (chunk != nullptr && chunk->_drawDelegate != nullptr) {
+        chunk->_drawDelegate->markDirty();
+    }
 }
 
 auto minecraft::TerrainChunk::getNeighborBlockLocal(const int x,
@@ -100,9 +133,12 @@ auto minecraft::TerrainChunk::getNeighborBlockLocal(const int x,
     return chunk->getBlockLocal(localX, localY, localZ);
 }
 
-auto minecraft::TerrainChunk::prepareDraw() -> void {}
-
-auto minecraft::TerrainChunk::draw() -> void {}
+auto minecraft::TerrainChunk::draw() -> void
+{
+    if (_drawDelegate != nullptr) {
+        _drawDelegate->draw();
+    }
+}
 
 auto minecraft::TerrainChunk::alignToChunkOrigin(const int x, const int z) -> std::pair<int, int>
 {
