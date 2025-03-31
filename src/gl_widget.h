@@ -11,6 +11,8 @@ namespace minecraft {
 
 class GLWidget : public QOpenGLWidget, public GLContext
 {
+    Q_OBJECT
+
 public:
     GLWidget(QWidget *const parent = nullptr);
 

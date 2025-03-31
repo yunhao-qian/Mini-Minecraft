@@ -28,8 +28,10 @@ FetchContent_MakeAvailable(glm)
 
 set(PROJECT_SOURCES
     src/main.cpp
+    src/block_type.h
     src/camera_controls_window.h
     src/camera_controls_window.cpp
+    src/direction.h
     src/gl_context.h
     src/gl_context.cpp
     src/gl_widget.h
@@ -41,6 +43,8 @@ set(PROJECT_SOURCES
     src/player_info_window.cpp
     src/shader_program.h
     src/shader_program.cpp
+    src/terrain_chunk.h
+    src/terrain_chunk.cpp
 )
 
 qt_add_executable(mini-minecraft
