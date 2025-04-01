@@ -70,7 +70,7 @@ auto minecraft::Pose::moveGlobalForward(const float distance) -> void
 
 auto minecraft::Pose::rotateAround(const glm::vec3 &axis, const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({}, glm::radians(degrees), axis)};
+    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), axis)};
     _right = glm::normalize(rotation * _right);
     _up = glm::normalize(rotation * _up);
     _forward = glm::normalize(rotation * _forward);
@@ -78,21 +78,21 @@ auto minecraft::Pose::rotateAround(const glm::vec3 &axis, const float degrees) -
 
 auto minecraft::Pose::rotateAroundLocalRight(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({}, glm::radians(degrees), _right)};
+    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _right)};
     _up = glm::normalize(rotation * _up);
     _forward = glm::normalize(rotation * _forward);
 }
 
 auto minecraft::Pose::rotateAroundLocalUp(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({}, glm::radians(degrees), _up)};
+    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _up)};
     _right = glm::normalize(rotation * _right);
     _forward = glm::normalize(rotation * _forward);
 }
 
 auto minecraft::Pose::rotateAroundLocalForward(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({}, glm::radians(degrees), _forward)};
+    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _forward)};
     _right = glm::normalize(rotation * _right);
     _up = glm::normalize(rotation * _up);
 }

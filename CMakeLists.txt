@@ -34,17 +34,23 @@ set(PROJECT_SOURCES
     src/camera_controls_window.h
     src/camera_controls_window.cpp
     src/direction.h
+    src/entity.h
+    src/entity.cpp
     src/gl_context.h
     src/gl_context.cpp
     src/gl_widget.h
     src/gl_widget.cpp
     src/main_window.h
     src/main_window.cpp
+    src/player.h
+    src/player.cpp
     src/player_info_display_data.h
     src/player_info_window.h
     src/player_info_window.cpp
     src/pose.h
     src/pose.cpp
+    src/scene.h
+    src/scene.cpp
     src/shader_program.h
     src/shader_program.cpp
     src/terrain.h

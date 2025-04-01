@@ -93,6 +93,7 @@ auto minecraft::ShaderProgram::useProgram() const -> void
 
 auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void
 {
+    useProgram();
     const auto it{std::ranges::find_if(_uniformLocations,
                                        [&name](const auto &pair) { return pair.first == name; })};
     if (it == _uniformLocations.end()) {

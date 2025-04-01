@@ -2,6 +2,7 @@
 #define MINI_MINECRAFT_GL_WIDGET_H
 
 #include "gl_context.h"
+#include "scene.h"
 #include "shader_program.h"
 
 #include <QOpenGLWidget>
@@ -26,6 +27,7 @@ private slots:
 
 private:
     QTimer _timer;
+    Scene _scene;
     ShaderProgram _programFlat;
 };
 

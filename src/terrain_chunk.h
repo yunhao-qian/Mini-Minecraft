@@ -205,15 +205,15 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
         }
     }
 
-    _vertexArrayHelper.setVertexData(vertices);
-    _vertexArrayHelper.setIndexData(indices);
+    _vertexArrayHelper.setVertices(vertices, GL_STATIC_DRAW);
+    _vertexArrayHelper.setIndices(indices, GL_STATIC_DRAW);
     _dirty = false;
 }
 
 template<typename Vertex>
 auto minecraft::TerrainChunkDrawDelegate<Vertex>::draw() -> void
 {
-    _vertexArrayHelper->drawElements(GL_TRIANGLES);
+    _vertexArrayHelper.drawElements(GL_TRIANGLES);
 }
 
 template<typename Vertex>

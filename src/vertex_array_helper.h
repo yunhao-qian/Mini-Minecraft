@@ -4,6 +4,7 @@
 #include "gl_context.h"
 #include "vertex.h"
 
+#include <cstdlib>
 #include <vector>
 
 namespace minecraft {
@@ -109,7 +110,10 @@ auto minecraft::VertexArrayHelper<Vertex>::drawElements(const GLenum mode) const
         _context->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
         _context->debugGLError();
     }
-    _context->glDrawElements(mode, _elementCount, GL_UNSIGNED_INT, static_cast<const GLvoid *>(0));
+    _context->glDrawElements(mode,
+                             _elementCount,
+                             GL_UNSIGNED_INT,
+                             reinterpret_cast<const GLvoid *>(static_cast<std::size_t>(0)));
     _context->debugGLError();
     if (!_ownsVAO) {
         for (const auto &attribute : VertexTraits<Vertex>::Attributes) {
@@ -128,7 +132,7 @@ auto minecraft::VertexArrayHelper<Vertex>::enableVertexAttributes() const -> voi
                                         attribute.type,
                                         attribute.normalized,
                                         static_cast<GLsizei>(VertexTraits<Vertex>::Stride),
-                                        static_cast<const GLvoid *>(attribute.offset));
+                                        reinterpret_cast<const GLvoid *>(attribute.offset));
         _context->debugGLError();
         _context->glEnableVertexAttribArray(attribute.index);
         _context->debugGLError();
