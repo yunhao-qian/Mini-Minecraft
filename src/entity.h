@@ -3,12 +3,14 @@
 
 #include "pose.h"
 
+#include <glm/glm.hpp>
+
 namespace minecraft {
 
 class Entity
 {
 public:
-    Entity(const Pose &pose, const glm::vec3 &velocity);
+    Entity(const Pose &pose, const glm::vec3 &velocity, const glm::vec3 &acceleration);
     virtual ~Entity() = default;
 
     auto pose() const -> const Pose &;
@@ -17,9 +19,13 @@ public:
     auto velocity() const -> const glm::vec3 &;
     auto setVelocity(const glm::vec3 &velocity) -> void;
 
+    auto acceleration() const -> const glm::vec3 &;
+    auto setAcceleration(const glm::vec3 &acceleration) -> void;
+
 protected:
     Pose _pose;
     glm::vec3 _velocity;
+    glm::vec3 _acceleration;
 };
 
 } // namespace minecraft

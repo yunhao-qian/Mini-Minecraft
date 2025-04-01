@@ -2,8 +2,11 @@
 #define MINI_MINECRAFT_GL_WIDGET_H
 
 #include "gl_context.h"
+#include "player_controller.h"
+#include "player_info_display_data.h"
 #include "scene.h"
 #include "shader_program.h"
+#include "terrain_generator.h"
 
 #include <QOpenGLWidget>
 #include <QTimer>
@@ -17,10 +20,15 @@ class GLWidget : public QOpenGLWidget, public GLContext
 public:
     GLWidget(QWidget *const parent = nullptr);
 
+signals:
+    auto playerInfoUpdated(const minecraft::PlayerInfoDisplayData &data) -> void;
+
 protected:
     auto initializeGL() -> void override;
     auto resizeGL(const int width, const int height) -> void override;
     auto paintGL() -> void override;
+
+    auto keyPressEvent(QKeyEvent *const event) -> void override;
 
 private slots:
     auto tick() -> void;
@@ -28,7 +36,10 @@ private slots:
 private:
     QTimer _timer;
     Scene _scene;
+    TerrainGenerator _terrainGenerator;
+    PlayerController _playerController;
     ShaderProgram _programFlat;
+    ShaderProgram _programLambert;
 };
 
 } // namespace minecraft

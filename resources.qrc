@@ -2,5 +2,7 @@
     <qresource prefix="/">
         <file>shaders/flat.frag.glsl</file>
         <file>shaders/flat.vert.glsl</file>
+        <file>shaders/lambert.frag.glsl</file>
+        <file>shaders/lambert.vert.glsl</file>
     </qresource>
 </RCC>

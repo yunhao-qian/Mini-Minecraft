@@ -15,6 +15,7 @@ minecraft::MainWindow::MainWindow(QWidget *const parent)
 
     _glWidget = new GLWidget{};
     setCentralWidget(_glWidget);
+    _glWidget->setFocus();
 
     const auto playerInfoWindow{new PlayerInfoWindow{this}};
     playerInfoWindow->setWindowFlag(Qt::Dialog);
@@ -56,4 +57,9 @@ minecraft::MainWindow::MainWindow(QWidget *const parent)
             &QAction::setChecked);
 
     connect(actionCameraControls, &QAction::triggered, cameraControlsWindow, &QWidget::show);
+
+    connect(_glWidget,
+            &GLWidget::playerInfoUpdated,
+            playerInfoWindow,
+            &PlayerInfoWindow::setPlayerInfo);
 }

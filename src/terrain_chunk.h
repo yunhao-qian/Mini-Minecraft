@@ -7,6 +7,8 @@
 #include "vertex.h"
 #include "vertex_array_helper.h"
 
+#include <glm/glm.hpp>
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -150,19 +152,19 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
                 glm::vec3 color;
                 switch (block) {
                 case BlockType::Grass:
-                    color = {0.5f, 1.0f, 0.5f};
+                    color = {0.37f, 0.62f, 0.21f};
                     break;
                 case BlockType::Dirt:
-                    color = {0.5f, 0.25f, 0.0f};
+                    color = {0.47f, 0.33f, 0.23f};
                     break;
                 case BlockType::Stone:
-                    color = {0.5f, 0.5f, 0.5f};
+                    color = {0.50f, 0.50f, 0.50f};
                     break;
                 case BlockType::Water:
-                    color = {0.0f, 0.0f, 1.0f};
+                    color = {0.00f, 0.00f, 0.75f};
                     break;
                 default:
-                    color = {1.0f, 1.0f, 1.0f};
+                    color = {1.00f, 0.00f, 1.00f};
                 }
 
                 for (const auto &[direction, i] : {
@@ -189,7 +191,7 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
                             .position{static_cast<float>(globalX + position[0]),
                                       static_cast<float>(globalY + position[1]),
                                       static_cast<float>(globalZ + position[2])},
-                            .color{color * (direction == Direction::PositiveY ? 1.0f : 0.8f)},
+                            .color{color},
                         };
                         if constexpr (std::is_same_v<Vertex, LambertVertex>) {
                             vertex.normal = {

@@ -44,6 +44,8 @@ set(PROJECT_SOURCES
     src/main_window.cpp
     src/player.h
     src/player.cpp
+    src/player_controller.h
+    src/player_controller.cpp
     src/player_info_display_data.h
     src/player_info_window.h
     src/player_info_window.cpp
@@ -57,6 +59,8 @@ set(PROJECT_SOURCES
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
+    src/terrain_generator.h
+    src/terrain_generator.cpp
     src/vertex.h
     src/vertex_array_helper.h
 )

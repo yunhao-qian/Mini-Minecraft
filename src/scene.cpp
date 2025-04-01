@@ -2,7 +2,7 @@
 
 minecraft::Scene::Scene(GLContext *const context)
     : _terrain{context}
-    , _player{{}, {0.0f, 0.0f, 0.0f}}
+    , _player{{{0.0f, 128.0f, 0.0f}}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}
 {}
 
 auto minecraft::Scene::terrain() -> Terrain &

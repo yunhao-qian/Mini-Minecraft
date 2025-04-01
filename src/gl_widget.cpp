@@ -2,12 +2,18 @@
 
 #include "vertex.h"
 
+#include <QString>
+
 minecraft::GLWidget::GLWidget(QWidget *const parent)
     : QOpenGLWidget{parent}
     , _timer{}
     , _scene{this}
+    , _terrainGenerator{&_scene.terrain()}
+    , _playerController{&_scene.player()}
     , _programFlat{this}
+    , _programLambert{this}
 {
+    setFocusPolicy(Qt::StrongFocus);
     connect(&_timer, &QTimer::timeout, this, &GLWidget::tick);
     _timer.start(16); // ~60 frames per second
 }
@@ -25,7 +31,10 @@ auto minecraft::GLWidget::initializeGL() -> void
 
     if (!_programFlat.create(":/shaders/flat.vert.glsl",
                              ":/shaders/flat.frag.glsl",
-                             {"u_viewProjectionMatrix", "u_modelMatrix"})) {
+                             {"u_viewProjectionMatrix"})
+        || !_programLambert.create(":/shaders/lambert.vert.glsl",
+                                   ":/shaders/lambert.frag.glsl",
+                                   {"u_viewProjectionMatrix"})) {
         qFatal("Failed to create one or more shader programs");
     }
 }
@@ -41,14 +50,20 @@ auto minecraft::GLWidget::paintGL() -> void
     debugGLError();
 
     auto &camera{_scene.player().getSyncedCamera()};
-    _programFlat.setUniform("u_viewProjectionMatrix", camera.viewProjectionMatrix());
-    _programFlat.setUniform("u_modelMatrix", glm::mat4{1.0f});
-    _programFlat.useProgram();
+    _programLambert.setUniform("u_viewProjectionMatrix", camera.viewProjectionMatrix());
+    _programLambert.useProgram();
     _scene.terrain().draw();
+}
+
+auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void
+{
+    _playerController.keyPressEvent(event);
 }
 
 auto minecraft::GLWidget::tick() -> void
 {
-    _scene.terrain().prepareDraw<FlatVertex>();
+    _terrainGenerator.generateTerrainAround(_scene.player().pose().position(), 128.0f);
+    _scene.terrain().prepareDraw<LambertVertex>();
     update();
+    emit playerInfoUpdated(_scene.player().createPlayerInfoDisplayData());
 }

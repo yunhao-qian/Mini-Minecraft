@@ -16,7 +16,7 @@ public:
     PlayerInfoWindow(QWidget *const parent = nullptr);
 
 public slots:
-    auto playerInfoChanged(const PlayerInfoDisplayData &data) -> void;
+    auto setPlayerInfo(const minecraft::PlayerInfoDisplayData &data) -> void;
 
 signals:
     auto visibleChanged(const bool visible) -> void;

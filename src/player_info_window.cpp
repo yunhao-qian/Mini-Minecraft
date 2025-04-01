@@ -37,7 +37,7 @@ minecraft::PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
     resize(480, height());
 }
 
-auto minecraft::PlayerInfoWindow::playerInfoChanged(const PlayerInfoDisplayData &data) -> void
+auto minecraft::PlayerInfoWindow::setPlayerInfo(const PlayerInfoDisplayData &data) -> void
 {
     _positionLabel->setText(data.position);
     _velocityLabel->setText(data.velocity);
