@@ -2,8 +2,12 @@
 
 #include "vertex.h"
 
+#include <glm/glm.hpp>
+
 #include <QDateTime>
 #include <QString>
+
+#include <mutex>
 
 minecraft::GLWidget::GLWidget(QWidget *const parent)
     : QOpenGLWidget{parent}
@@ -43,6 +47,7 @@ auto minecraft::GLWidget::initializeGL() -> void
 
 auto minecraft::GLWidget::resizeGL(const int width, const int height) -> void
 {
+    std::lock_guard lock{_scene.playerMutex()};
     _scene.player().setCameraViewportSize(width, height);
 }
 
@@ -51,15 +56,27 @@ auto minecraft::GLWidget::paintGL() -> void
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     debugGLError();
 
-    _scene.terrain().prepareDraw<LambertVertex>();
-    auto &camera{_scene.player().getSyncedCamera()};
-    _programLambert.setUniform("u_viewProjectionMatrix", camera.viewProjectionMatrix());
+    glm::vec3 cameraPosition;
+    glm::mat4 viewProjectionMatrix;
+    {
+        std::lock_guard lock{_scene.playerMutex()};
+        cameraPosition = _scene.player().pose().position();
+        viewProjectionMatrix = _scene.player().getSyncedCamera().viewProjectionMatrix();
+    }
+    _programLambert.setUniform("u_viewProjectionMatrix", viewProjectionMatrix);
     _programLambert.useProgram();
-    _scene.terrain().draw();
+
+    {
+        std::lock_guard lock{_scene.terrainMutex()};
+        _terrainStreamer.update(cameraPosition);
+        _scene.terrain().prepareDraw<LambertVertex>();
+        _scene.terrain().draw();
+    }
 }
 
 auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void
 {
+    std::lock_guard lock{_scene.playerMutex()};
     _playerController.keyPressEvent(event);
 }
 
@@ -73,10 +90,10 @@ auto minecraft::GLWidget::tick() -> void
     }
     const auto dT{static_cast<float>(milliseconds - _lastTickMilliseconds) * 0.001f};
     _lastTickMilliseconds = milliseconds;
-
-    _scene.player().updatePhysics(dT);
-
-    _terrainStreamer.update(_scene.player().pose().position());
+    {
+        std::lock_guard lock{_scene.playerMutex()};
+        _scene.player().updatePhysics(dT);
+        emit playerInfoChanged(_scene.player().createPlayerInfoDisplayData());
+    }
     update();
-    emit playerInfoChanged(_scene.player().createPlayerInfoDisplayData());
 }

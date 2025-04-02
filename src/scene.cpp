@@ -14,3 +14,13 @@ auto minecraft::Scene::player() -> Player &
 {
     return _player;
 }
+
+auto minecraft::Scene::terrainMutex() -> std::mutex &
+{
+    return _terrainMutex;
+}
+
+auto minecraft::Scene::playerMutex() -> std::mutex &
+{
+    return _playerMutex;
+}

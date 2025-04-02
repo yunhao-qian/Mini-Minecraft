@@ -4,6 +4,8 @@
 #include "player.h"
 #include "terrain.h"
 
+#include <mutex>
+
 namespace minecraft {
 
 class Scene
@@ -14,9 +16,17 @@ public:
     auto terrain() -> Terrain &;
     auto player() -> Player &;
 
+    auto terrainMutex() -> std::mutex &;
+    auto playerMutex() -> std::mutex &;
+
 private:
     Terrain _terrain;
     Player _player;
+
+    // TODO: Slots of the GLWidget class seem to be called from different threads. Use mutexes to
+    // synchronize access for now.
+    std::mutex _terrainMutex;
+    std::mutex _playerMutex;
 };
 
 } // namespace minecraft
