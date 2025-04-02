@@ -17,10 +17,20 @@ public:
     auto setCameraViewportSize(const int width, const int height) -> void;
     auto getSyncedCamera() -> const Camera &;
 
+    auto desiredVelocity() const -> const glm::vec3 &;
+    auto setDesiredVelocity(const glm::vec3 &desiredVelocity) -> void;
+
+    auto desiredOrientation() const -> const glm::mat3 &;
+    auto setDesiredOrientation(const glm::mat3 &desiredOrientation) -> void;
+
+    auto updatePhysics(const float dT) -> void;
+
     auto createPlayerInfoDisplayData() const -> PlayerInfoDisplayData;
 
 private:
     Camera _camera;
+    glm::vec3 _desiredVelocity;
+    glm::mat3 _desiredOrientation;
 };
 
 } // namespace minecraft

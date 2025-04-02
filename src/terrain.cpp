@@ -1,6 +1,5 @@
 #include "terrain.h"
 
-#include <cstdint>
 #include <utility>
 
 auto minecraft::Terrain::getChunk(const int x, const int z) const -> const TerrainChunk *

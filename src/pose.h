@@ -16,6 +16,9 @@ public:
     auto up() const -> const glm::vec3 &;
     auto forward() const -> const glm::vec3 &;
 
+    auto rotationMatrix() const -> glm::mat3;
+    auto setRotationMatrix(const glm::mat3 &matrix) -> void;
+
     auto move(const glm::vec3 &displacement) -> void;
 
     auto moveLocalRight(const float distance) -> void;

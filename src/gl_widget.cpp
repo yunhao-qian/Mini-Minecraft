@@ -7,6 +7,8 @@
 minecraft::GLWidget::GLWidget(QWidget *const parent)
     : QOpenGLWidget{parent}
     , _timer{}
+    , _elapsedTimer{}
+    , _lastFrameTime{-1}
     , _scene{}
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
@@ -16,6 +18,8 @@ minecraft::GLWidget::GLWidget(QWidget *const parent)
     setFocusPolicy(Qt::StrongFocus);
     connect(&_timer, &QTimer::timeout, this, &GLWidget::tick);
     _timer.start(16); // ~60 frames per second
+
+    _elapsedTimer.start();
 }
 
 auto minecraft::GLWidget::initializeGL() -> void
@@ -62,6 +66,17 @@ auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void
 
 auto minecraft::GLWidget::tick() -> void
 {
+    const auto time{_elapsedTimer.elapsed()};
+    if (_lastFrameTime < 0) {
+        // First frame
+        _lastFrameTime = time;
+        return;
+    }
+    const auto dT{static_cast<float>(time - _lastFrameTime) * 0.001f};
+    _lastFrameTime = time;
+
+    _scene.player().updatePhysics(dT);
+
     _terrainStreamer.update(_scene.player().pose().position());
     _scene.terrain().prepareDraw<LambertVertex>();
     update();

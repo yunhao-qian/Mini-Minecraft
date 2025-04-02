@@ -8,6 +8,7 @@
 #include "shader_program.h"
 #include "terrain_streamer.h"
 
+#include <QElapsedTimer>
 #include <QOpenGLWidget>
 #include <QTimer>
 
@@ -35,6 +36,9 @@ private slots:
 
 private:
     QTimer _timer;
+    QElapsedTimer _elapsedTimer;
+    qint64 _lastFrameTime;
+
     Scene _scene;
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;

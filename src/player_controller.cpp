@@ -1,47 +1,57 @@
 #include "player_controller.h"
 
+#include "pose.h"
+
 minecraft::PlayerController::PlayerController(Player *const player)
     : _player{player}
 {}
 
 auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) -> void
 {
-    // TODO: Temporary logic for player movement
-    auto pose{_player->pose()};
-    const auto distance{(event->modifiers() & Qt::ShiftModifier) == 0 ? 2.0f : 10.0f};
+    const auto shiftPressed{(event->modifiers() & Qt::ShiftModifier) != 0};
+    const auto deltaSpeed{shiftPressed ? 5.0f : 1.0f};
+    const auto deltaAngle{shiftPressed ? 20.0f : 4.0f};
+
+    const auto pose{_player->pose()};
+    auto desiredVelocity{_player->desiredVelocity()};
+    Pose desiredPose;
+    desiredPose.setRotationMatrix(_player->desiredOrientation());
+
     switch (event->key()) {
     case Qt::Key_W:
-        pose.moveLocalForward(distance);
+        desiredVelocity += pose.forward() * deltaSpeed;
         break;
     case Qt::Key_S:
-        pose.moveLocalForward(-distance);
+        desiredVelocity -= pose.forward() * deltaSpeed;
         break;
     case Qt::Key_A:
-        pose.moveLocalRight(-distance);
+        desiredVelocity -= pose.right() * deltaSpeed;
         break;
     case Qt::Key_D:
-        pose.moveLocalRight(distance);
+        desiredVelocity += pose.right() * deltaSpeed;
         break;
     case Qt::Key_Q:
-        pose.moveGlobalUp(-distance);
+        desiredVelocity -= pose.up() * deltaSpeed;
         break;
     case Qt::Key_E:
-        pose.moveGlobalUp(distance);
+        desiredVelocity += pose.up() * deltaSpeed;
         break;
     case Qt::Key_Up:
-        pose.rotateAroundLocalRight(-distance);
+        desiredPose.rotateAroundLocalRight(-deltaAngle);
         break;
     case Qt::Key_Down:
-        pose.rotateAroundLocalRight(distance);
+        desiredPose.rotateAroundLocalRight(deltaAngle);
         break;
     case Qt::Key_Left:
-        pose.rotateAroundGlobalUp(distance);
+        desiredPose.rotateAroundGlobalUp(deltaAngle);
         break;
     case Qt::Key_Right:
-        pose.rotateAroundGlobalUp(-distance);
+        desiredPose.rotateAroundGlobalUp(-deltaAngle);
         break;
     default:
         return;
     }
-    _player->setPose(pose);
+
+    _player->setDesiredVelocity(desiredVelocity);
+    _player->setDesiredOrientation(desiredPose.rotationMatrix());
 }

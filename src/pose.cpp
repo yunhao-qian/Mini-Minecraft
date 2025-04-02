@@ -1,4 +1,5 @@
 #include "pose.h"
+#include "glm/fwd.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -31,6 +32,18 @@ auto minecraft::Pose::up() const -> const glm::vec3 &
 auto minecraft::Pose::forward() const -> const glm::vec3 &
 {
     return _forward;
+}
+
+auto minecraft::Pose::rotationMatrix() const -> glm::mat3
+{
+    return {_right, _up, -_forward};
+}
+
+auto minecraft::Pose::setRotationMatrix(const glm::mat3 &matrix) -> void
+{
+    _right = glm::normalize(matrix[0]);
+    _up = glm::normalize(matrix[1]);
+    _forward = glm::normalize(-matrix[2]);
 }
 
 auto minecraft::Pose::move(const glm::vec3 &displacement) -> void
