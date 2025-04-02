@@ -51,6 +51,7 @@ auto minecraft::GLWidget::paintGL() -> void
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     debugGLError();
 
+    _scene.terrain().prepareDraw<LambertVertex>();
     auto &camera{_scene.player().getSyncedCamera()};
     _programLambert.setUniform("u_viewProjectionMatrix", camera.viewProjectionMatrix());
     _programLambert.useProgram();
@@ -76,7 +77,6 @@ auto minecraft::GLWidget::tick() -> void
     _scene.player().updatePhysics(dT);
 
     _terrainStreamer.update(_scene.player().pose().position());
-    _scene.terrain().prepareDraw<LambertVertex>();
     update();
     emit playerInfoChanged(_scene.player().createPlayerInfoDisplayData());
 }

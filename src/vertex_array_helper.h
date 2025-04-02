@@ -32,6 +32,20 @@ private:
     GLsizei _elementCount;
 };
 
+template<typename Vertex>
+VertexArrayHelper<Vertex>::~VertexArrayHelper()
+{
+    // The destructor of a template class has to be in the same namespace as the class itself.
+    if (_ownsVAO) {
+        _context->glDeleteVertexArrays(1, &_vao);
+        _context->debugGLError();
+    }
+    _context->glDeleteBuffers(1, &_vbo);
+    _context->debugGLError();
+    _context->glDeleteBuffers(1, &_ebo);
+    _context->debugGLError();
+}
+
 } // namespace minecraft
 
 template<typename Vertex>
@@ -50,19 +64,6 @@ minecraft::VertexArrayHelper<Vertex>::VertexArrayHelper(GLContext *const context
     _context->glGenBuffers(1, &_vbo);
     _context->debugGLError();
     _context->glGenBuffers(1, &_ebo);
-    _context->debugGLError();
-}
-
-template<typename Vertex>
-minecraft::VertexArrayHelper<Vertex>::~VertexArrayHelper<Vertex>()
-{
-    if (_ownsVAO) {
-        _context->glDeleteVertexArrays(1, &_vao);
-        _context->debugGLError();
-    }
-    _context->glDeleteBuffers(1, &_vbo);
-    _context->debugGLError();
-    _context->glDeleteBuffers(1, &_ebo);
     _context->debugGLError();
 }
 

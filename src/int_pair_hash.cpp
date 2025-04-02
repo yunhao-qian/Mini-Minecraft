@@ -1,5 +1,6 @@
 #include "int_pair_hash.h"
 
+#include <cstdint>
 #include <functional>
 
 auto minecraft::IntPairHash::operator()(const std::pair<int, int> &pair) const -> std::size_t
