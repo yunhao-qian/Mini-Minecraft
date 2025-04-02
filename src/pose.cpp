@@ -1,7 +1,8 @@
 #include "pose.h"
 #include "glm/fwd.hpp"
 
-#include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
 
 minecraft::Pose::Pose()
     : Pose{{0.0f, 0.0f, 0.0f}}
@@ -9,9 +10,7 @@ minecraft::Pose::Pose()
 
 minecraft::Pose::Pose(const glm::vec3 &position)
     : _position{position}
-    , _right{1.0f, 0.0f, 0.0f}
-    , _up{0.0f, 1.0f, 0.0f}
-    , _forward{0.0f, 0.0f, -1.0f}
+    , _orientation{1.0f, 0.0f, 0.0f, 0.0f}
 {}
 
 auto minecraft::Pose::position() const -> const glm::vec3 &
@@ -19,95 +18,54 @@ auto minecraft::Pose::position() const -> const glm::vec3 &
     return _position;
 }
 
-auto minecraft::Pose::right() const -> const glm::vec3 &
+auto minecraft::Pose::setPosition(const glm::vec3 &position) -> void
 {
-    return _right;
+    _position = position;
 }
 
-auto minecraft::Pose::up() const -> const glm::vec3 &
+auto minecraft::Pose::orientation() const -> const glm::quat &
 {
-    return _up;
+    return _orientation;
 }
 
-auto minecraft::Pose::forward() const -> const glm::vec3 &
+auto minecraft::Pose::setOrientation(const glm::quat &orientation) -> void
 {
-    return _forward;
+    _orientation = glm::normalize(orientation);
 }
 
-auto minecraft::Pose::rotationMatrix() const -> glm::mat3
+auto minecraft::Pose::right() const -> glm::vec3
 {
-    return {_right, _up, -_forward};
+    return _orientation * glm::vec3{1.0f, 0.0f, 0.0f};
 }
 
-auto minecraft::Pose::setRotationMatrix(const glm::mat3 &matrix) -> void
+auto minecraft::Pose::up() const -> glm::vec3
 {
-    _right = glm::normalize(matrix[0]);
-    _up = glm::normalize(matrix[1]);
-    _forward = glm::normalize(-matrix[2]);
+    return _orientation * glm::vec3{0.0f, 1.0f, 0.0f};
 }
 
-auto minecraft::Pose::move(const glm::vec3 &displacement) -> void
+auto minecraft::Pose::forward() const -> glm::vec3
 {
-    _position += displacement;
-}
-
-auto minecraft::Pose::moveLocalRight(const float distance) -> void
-{
-    move(_right * distance);
-}
-
-auto minecraft::Pose::moveLocalUp(const float distance) -> void
-{
-    move(_up * distance);
-}
-
-auto minecraft::Pose::moveLocalForward(const float distance) -> void
-{
-    move(_forward * distance);
-}
-
-auto minecraft::Pose::moveGlobalRight(const float distance) -> void
-{
-    _position.x += distance;
-}
-
-auto minecraft::Pose::moveGlobalUp(const float distance) -> void
-{
-    _position.y += distance;
-}
-
-auto minecraft::Pose::moveGlobalForward(const float distance) -> void
-{
-    _position.z -= distance;
+    return _orientation * glm::vec3{0.0f, 0.0f, -1.0f};
 }
 
 auto minecraft::Pose::rotateAround(const glm::vec3 &axis, const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), axis)};
-    _right = glm::normalize(rotation * _right);
-    _up = glm::normalize(rotation * _up);
-    _forward = glm::normalize(rotation * _forward);
+    _orientation = glm::normalize(glm::angleAxis(glm::radians(degrees), axis) * _orientation);
 }
 
 auto minecraft::Pose::rotateAroundLocalRight(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _right)};
-    _up = glm::normalize(rotation * _up);
-    _forward = glm::normalize(rotation * _forward);
+    rotateAround(right(), degrees);
 }
 
 auto minecraft::Pose::rotateAroundLocalUp(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _up)};
-    _right = glm::normalize(rotation * _right);
-    _forward = glm::normalize(rotation * _forward);
+    rotateAround(up(), degrees);
 }
 
 auto minecraft::Pose::rotateAroundLocalForward(const float degrees) -> void
 {
-    const glm::mat3 rotation{glm::rotate({1.0f}, glm::radians(degrees), _forward)};
-    _right = glm::normalize(rotation * _right);
-    _up = glm::normalize(rotation * _up);
+    rotateAround(forward(), degrees);
 }
 
 auto minecraft::Pose::rotateAroundGlobalRight(const float degrees) -> void
@@ -127,5 +85,7 @@ auto minecraft::Pose::rotateAroundGlobalForward(const float degrees) -> void
 
 auto minecraft::Pose::viewMatrix() const -> glm::mat4
 {
-    return glm::lookAt(_position, _position + _forward, _up);
+    const auto inverseRotation{glm::toMat4(glm::conjugate(_orientation))};
+    const auto inverseTranslation{glm::translate({1.0f}, -_position)};
+    return inverseRotation * inverseTranslation;
 }

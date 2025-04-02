@@ -16,29 +16,28 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
     const auto deltaSpeed{shiftPressed ? 5.0f : 1.0f};
     const auto deltaAngle{shiftPressed ? 20.0f : 4.0f};
 
-    const auto pose{_player->pose()};
     auto desiredVelocity{_player->desiredVelocity()};
     Pose desiredPose;
-    desiredPose.setRotationMatrix(_player->desiredOrientation());
+    desiredPose.setOrientation(_player->desiredOrientation());
 
     switch (event->key()) {
     case Qt::Key_W:
-        desiredVelocity += pose.forward() * deltaSpeed;
+        desiredVelocity += _player->pose().forward() * deltaSpeed;
         break;
     case Qt::Key_S:
-        desiredVelocity -= pose.forward() * deltaSpeed;
+        desiredVelocity -= _player->pose().forward() * deltaSpeed;
         break;
     case Qt::Key_A:
-        desiredVelocity -= pose.right() * deltaSpeed;
+        desiredVelocity -= _player->pose().right() * deltaSpeed;
         break;
     case Qt::Key_D:
-        desiredVelocity += pose.right() * deltaSpeed;
+        desiredVelocity += _player->pose().right() * deltaSpeed;
         break;
     case Qt::Key_Q:
-        desiredVelocity -= pose.up() * deltaSpeed;
+        desiredVelocity -= _player->pose().up() * deltaSpeed;
         break;
     case Qt::Key_E:
-        desiredVelocity += pose.up() * deltaSpeed;
+        desiredVelocity += _player->pose().up() * deltaSpeed;
         break;
     case Qt::Key_Up:
         desiredPose.rotateAroundLocalRight(-deltaAngle);
@@ -61,5 +60,5 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
         desiredVelocity = glm::normalize(desiredVelocity) * desiredSpeed;
     }
     _player->setDesiredVelocity(desiredVelocity);
-    _player->setDesiredOrientation(desiredPose.rotationMatrix());
+    _player->setDesiredOrientation(desiredPose.orientation());
 }

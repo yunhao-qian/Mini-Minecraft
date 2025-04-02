@@ -6,6 +6,7 @@
 #include "player_info_display_data.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace minecraft {
 
@@ -20,8 +21,8 @@ public:
     auto desiredVelocity() const -> const glm::vec3 &;
     auto setDesiredVelocity(const glm::vec3 &desiredVelocity) -> void;
 
-    auto desiredOrientation() const -> const glm::mat3 &;
-    auto setDesiredOrientation(const glm::mat3 &desiredOrientation) -> void;
+    auto desiredOrientation() const -> const glm::quat &;
+    auto setDesiredOrientation(const glm::quat &orientation) -> void;
 
     auto updatePhysics(const float dT) -> void;
 
@@ -30,7 +31,7 @@ public:
 private:
     Camera _camera;
     glm::vec3 _desiredVelocity;
-    glm::mat3 _desiredOrientation;
+    glm::quat _desiredOrientation;
 };
 
 } // namespace minecraft

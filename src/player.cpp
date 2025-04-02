@@ -2,8 +2,6 @@
 
 #include "terrain_chunk.h"
 
-#include <glm/gtc/quaternion.hpp>
-
 #include <QString>
 
 #include <cmath>
@@ -24,7 +22,7 @@ minecraft::Player::Player(const Pose &pose, const glm::vec3 &velocity, const glm
     , _desiredOrientation{}
 {
     _desiredVelocity = _velocity;
-    _desiredOrientation = _pose.rotationMatrix();
+    _desiredOrientation = _pose.orientation();
 }
 
 auto minecraft::Player::setCameraViewportSize(const int width, const int height) -> void
@@ -35,7 +33,7 @@ auto minecraft::Player::setCameraViewportSize(const int width, const int height)
 auto minecraft::Player::getSyncedCamera() -> const Camera &
 {
     auto pose{_pose};
-    pose.moveGlobalUp(1.5f);
+    pose.setPosition(_pose.position() + glm::vec3{0.0f, 1.5f, 0.0f});
     _camera.setPose(pose);
     return _camera;
 }
@@ -50,29 +48,28 @@ auto minecraft::Player::setDesiredVelocity(const glm::vec3 &desiredVelocity) -> 
     _desiredVelocity = desiredVelocity;
 }
 
-auto minecraft::Player::desiredOrientation() const -> const glm::mat3 &
+auto minecraft::Player::desiredOrientation() const -> const glm::quat &
 {
     return _desiredOrientation;
 }
 
-auto minecraft::Player::setDesiredOrientation(const glm::mat3 &desiredOrientation) -> void
+auto minecraft::Player::setDesiredOrientation(const glm::quat &orientation) -> void
 {
-    _desiredOrientation = desiredOrientation;
+    _desiredOrientation = orientation;
 }
 
 auto minecraft::Player::updatePhysics(const float dT) -> void
 {
     const auto interpolation{1.0f - std::exp(-5.0f * dT)};
     {
-        const auto quaternion{glm::quat_cast(_pose.rotationMatrix())};
-        const auto desiredQuaternion{glm::quat_cast(_desiredOrientation)};
-        const auto interpolatedQuaternion{glm::slerp(quaternion, desiredQuaternion, interpolation)};
-        _pose.setRotationMatrix(glm::mat3_cast(interpolatedQuaternion));
+        const auto interpolatedOrientation{
+            glm::slerp(_pose.orientation(), _desiredOrientation, interpolation)};
+        _pose.setOrientation(interpolatedOrientation);
     }
     {
         const auto interpolatedVelocity{glm::mix(_velocity, _desiredVelocity, interpolation)};
-        _pose.move(_velocity * dT);
         _acceleration = (interpolatedVelocity - _velocity) / dT;
+        _pose.setPosition(_pose.position() + _velocity * dT);
         _velocity = interpolatedVelocity;
     }
 }

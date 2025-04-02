@@ -2,6 +2,7 @@
 #define MINI_MINECRAFT_POSE_H
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace minecraft {
 
@@ -12,22 +13,14 @@ public:
     Pose(const glm::vec3 &position);
 
     auto position() const -> const glm::vec3 &;
-    auto right() const -> const glm::vec3 &;
-    auto up() const -> const glm::vec3 &;
-    auto forward() const -> const glm::vec3 &;
+    auto setPosition(const glm::vec3 &position) -> void;
 
-    auto rotationMatrix() const -> glm::mat3;
-    auto setRotationMatrix(const glm::mat3 &matrix) -> void;
+    auto orientation() const -> const glm::quat &;
+    auto setOrientation(const glm::quat &orientation) -> void;
 
-    auto move(const glm::vec3 &displacement) -> void;
-
-    auto moveLocalRight(const float distance) -> void;
-    auto moveLocalUp(const float distance) -> void;
-    auto moveLocalForward(const float distance) -> void;
-
-    auto moveGlobalRight(const float distance) -> void;
-    auto moveGlobalUp(const float distance) -> void;
-    auto moveGlobalForward(const float distance) -> void;
+    auto right() const -> glm::vec3;
+    auto up() const -> glm::vec3;
+    auto forward() const -> glm::vec3;
 
     auto rotateAround(const glm::vec3 &axis, const float degrees) -> void;
 
@@ -43,9 +36,7 @@ public:
 
 private:
     glm::vec3 _position;
-    glm::vec3 _right;
-    glm::vec3 _up;
-    glm::vec3 _forward;
+    glm::quat _orientation;
 };
 
 } // namespace minecraft
