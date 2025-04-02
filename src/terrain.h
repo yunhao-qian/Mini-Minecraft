@@ -1,9 +1,9 @@
 #ifndef MINI_MINECRAFT_TERRAIN_H
 #define MINI_MINECRAFT_TERRAIN_H
 
+#include "int_pair_hash.h"
 #include "terrain_chunk.h"
 
-#include <cstddef>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -29,15 +29,10 @@ public:
     auto draw() -> void;
 
 private:
-    struct ChunkKeyHash
-    {
-        auto operator()(const std::pair<int, int> &key) const -> std::size_t;
-    };
-
     template<typename Self>
     static auto getChunk(Self &self, const int x, const int z);
 
-    std::unordered_map<std::pair<int, int>, std::unique_ptr<TerrainChunk>, ChunkKeyHash> _chunks;
+    std::unordered_map<std::pair<int, int>, std::unique_ptr<TerrainChunk>, IntPairHash> _chunks;
 };
 
 } // namespace minecraft

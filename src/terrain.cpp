@@ -62,10 +62,3 @@ auto minecraft::Terrain::draw() -> void
         chunk->draw();
     }
 }
-
-auto minecraft::Terrain::ChunkKeyHash::operator()(const std::pair<int, int> &key) const
-    -> std::size_t
-{
-    return std::hash<std::int64_t>()((static_cast<std::int64_t>(key.first) << 32)
-                                     | (static_cast<std::int64_t>(key.second) & 0xFFFFFFFF));
-}

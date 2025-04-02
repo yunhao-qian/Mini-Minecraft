@@ -40,6 +40,8 @@ set(PROJECT_SOURCES
     src/gl_context.cpp
     src/gl_widget.h
     src/gl_widget.cpp
+    src/int_pair_hash.h
+    src/int_pair_hash.cpp
     src/main_window.h
     src/main_window.cpp
     src/player.h
@@ -59,6 +61,8 @@ set(PROJECT_SOURCES
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
+    src/terrain_chunk_generation_task.h
+    src/terrain_chunk_generation_task.cpp
     src/terrain_streamer.h
     src/terrain_streamer.cpp
     src/vertex.h

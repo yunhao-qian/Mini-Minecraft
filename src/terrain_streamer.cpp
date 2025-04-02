@@ -1,8 +1,11 @@
 #include "terrain_streamer.h"
 
+#include "terrain_chunk_generation_task.h"
+
+#include <QThreadPool>
+
 #include <algorithm>
 #include <cmath>
-#include <ranges>
 #include <utility>
 
 namespace {
@@ -34,12 +37,53 @@ minecraft::TerrainStreamer::TerrainStreamer(GLContext *const context, Terrain *c
     , _terrain{terrain}
 {}
 
+minecraft::TerrainStreamer::~TerrainStreamer()
+{
+    // TODO: This works only when TerrainStreamer is the only class using QThreadPool.
+    QThreadPool::globalInstance()->waitForDone();
+}
+
 auto minecraft::TerrainStreamer::update(const glm::vec3 &cameraPosition) -> void
 {
-    for (auto &chunk : _chunksToGenerate) {
-        _terrain->setChunk(std::move(chunk));
+    const glm::vec2 center2D{cameraPosition.x, cameraPosition.z};
+    const glm::ivec2 minPosition{glm::floor(center2D - GenerateDistance)};
+    const glm::ivec2 maxPosition{glm::floor(center2D + GenerateDistance)};
+    const auto minOrigin{TerrainChunk::alignToChunkOrigin(minPosition[0], minPosition[1])};
+    const auto maxOrigin{TerrainChunk::alignToChunkOrigin(maxPosition[0], maxPosition[1])};
+
+    std::vector<std::pair<float, std::pair<int, int>>> chunksToProcess;
+    {
+        std::lock_guard lock{_mutex};
+
+        for (auto &chunk : _finishedChunks) {
+            _terrain->setChunk(std::move(chunk));
+        }
+        _finishedChunks.clear();
+
+        for (auto minX{minOrigin.first}; minX <= maxOrigin.first; minX += TerrainChunk::SizeX) {
+            for (auto minZ{minOrigin.second}; minZ <= maxOrigin.second;
+                 minZ += TerrainChunk::SizeZ) {
+                const auto distance{getChunkDistance(cameraPosition, minX, minZ)};
+                if (distance > GenerateDistance || _terrain->getChunk(minX, minZ) != nullptr
+                    || _pendingChunks.contains({minX, minZ})) {
+                    continue;
+                }
+                _pendingChunks.insert({minX, minZ});
+                chunksToProcess.push_back({distance, {minX, minZ}});
+            }
+        }
     }
-    _chunksToGenerate.clear();
+
+    std::ranges::sort(chunksToProcess,
+                      [](const auto &a, const auto &b) { return a.first < b.first; });
+    for (const auto &[_, position] : chunksToProcess) {
+        QThreadPool::globalInstance()->start(new TerrainChunkGenerationTask{
+            std::make_unique<TerrainChunk>(_context, position.first, position.second),
+            &_mutex,
+            &_pendingChunks,
+            &_finishedChunks,
+        });
+    }
 
     _terrain->forEachChunk([&cameraPosition](TerrainChunk *const chunk) {
         const auto distance{getChunkDistance(cameraPosition, chunk->minX(), chunk->minZ())};
@@ -58,28 +102,4 @@ auto minecraft::TerrainStreamer::update(const glm::vec3 &cameraPosition) -> void
             }
         }
     });
-
-    const glm::vec2 center2D{cameraPosition.x, cameraPosition.z};
-    const glm::ivec2 minPosition{glm::floor(center2D - GenerateDistance)};
-    const glm::ivec2 maxPosition{glm::floor(center2D + GenerateDistance)};
-    const auto minOrigin{TerrainChunk::alignToChunkOrigin(minPosition[0], minPosition[1])};
-    const auto maxOrigin{TerrainChunk::alignToChunkOrigin(maxPosition[0], maxPosition[1])};
-    for (auto minX{minOrigin.first}; minX <= maxOrigin.first; minX += TerrainChunk::SizeX) {
-        for (auto minZ{minOrigin.second}; minZ <= maxOrigin.second; minZ += TerrainChunk::SizeZ) {
-            if (!(getChunkDistance(cameraPosition, minX, minZ) <= GenerateDistance)
-                || _terrain->getChunk(minX, minZ) != nullptr) {
-                continue;
-            }
-            _chunksToGenerate.push_back(std::make_unique<TerrainChunk>(_context, minX, minZ));
-        }
-    }
-    for (const auto &chunk : _chunksToGenerate) {
-        for (const auto x : std::views::iota(0, TerrainChunk::SizeX)) {
-            for (const auto z : std::views::iota(0, TerrainChunk::SizeZ)) {
-                for (const auto y : std::views::iota(0, 128)) {
-                    chunk->setBlockLocal(x, y, z, BlockType::Stone);
-                }
-            }
-        }
-    }
 }
