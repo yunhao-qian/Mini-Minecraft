@@ -59,8 +59,8 @@ set(PROJECT_SOURCES
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
-    src/terrain_generator.h
-    src/terrain_generator.cpp
+    src/terrain_streamer.h
+    src/terrain_streamer.cpp
     src/vertex.h
     src/vertex_array_helper.h
 )

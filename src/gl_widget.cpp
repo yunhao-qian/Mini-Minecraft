@@ -7,8 +7,8 @@
 minecraft::GLWidget::GLWidget(QWidget *const parent)
     : QOpenGLWidget{parent}
     , _timer{}
-    , _scene{this}
-    , _terrainGenerator{&_scene.terrain()}
+    , _scene{}
+    , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
     , _programFlat{this}
     , _programLambert{this}
@@ -62,8 +62,8 @@ auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void
 
 auto minecraft::GLWidget::tick() -> void
 {
-    _terrainGenerator.generateTerrainAround(_scene.player().pose().position(), 128.0f);
+    _terrainStreamer.update(_scene.player().pose().position());
     _scene.terrain().prepareDraw<LambertVertex>();
     update();
-    emit playerInfoUpdated(_scene.player().createPlayerInfoDisplayData());
+    emit playerInfoChanged(_scene.player().createPlayerInfoDisplayData());
 }

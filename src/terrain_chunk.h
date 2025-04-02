@@ -27,7 +27,6 @@ public:
     TerrainChunkDrawDelegateBase(const TerrainChunk *const chunk);
     virtual ~TerrainChunkDrawDelegateBase() = default;
 
-    auto isDirty() const -> bool;
     auto markDirty() -> void;
 
     virtual auto vertexType() const -> VertexType = 0;
@@ -93,10 +92,18 @@ public:
     auto getNeighborBlockLocal(const int x, const int y, const int z, const Direction direction) const
         -> BlockType;
 
+    auto isVisible() const -> bool;
+    auto setVisible(const bool visible) -> void;
+
+    auto markDirty() -> void;
+    auto markSelfAndNeighborsDirty() -> void;
+
     template<typename Vertex>
     auto prepareDraw() -> void;
 
     auto draw() -> void;
+
+    auto releaseDrawDelegate() -> void;
 
     static auto alignToChunkOrigin(const int x, const int z) -> std::pair<int, int>;
 
@@ -113,6 +120,7 @@ private:
     int _minZ;
     std::array<std::array<std::array<BlockType, SizeZ>, SizeY>, SizeX> _blocks;
     std::array<TerrainChunk *, 4> _neighbors;
+    bool _visible;
     std::unique_ptr<TerrainChunkDrawDelegateBase> _drawDelegate;
 };
 
@@ -134,6 +142,10 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::vertexType() const -> VertexTy
 template<typename Vertex>
 auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
 {
+    if (!_dirty) {
+        return;
+    }
+
     std::vector<Vertex> vertices;
     std::vector<GLuint> indices;
 
@@ -221,12 +233,13 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::draw() -> void
 template<typename Vertex>
 auto minecraft::TerrainChunk::prepareDraw() -> void
 {
+    if (!_visible) {
+        return;
+    }
     if (_drawDelegate == nullptr || _drawDelegate->vertexType() != VertexTraits<Vertex>::Type) {
         _drawDelegate = std::make_unique<TerrainChunkDrawDelegate<Vertex>>(this, _context);
-        _drawDelegate->prepareDraw();
-    } else if (_drawDelegate->isDirty()) {
-        _drawDelegate->prepareDraw();
     }
+    _drawDelegate->prepareDraw();
 }
 
 template<typename Self>

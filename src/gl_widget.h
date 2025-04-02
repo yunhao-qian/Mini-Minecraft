@@ -6,7 +6,7 @@
 #include "player_info_display_data.h"
 #include "scene.h"
 #include "shader_program.h"
-#include "terrain_generator.h"
+#include "terrain_streamer.h"
 
 #include <QOpenGLWidget>
 #include <QTimer>
@@ -21,7 +21,7 @@ public:
     GLWidget(QWidget *const parent = nullptr);
 
 signals:
-    auto playerInfoUpdated(const minecraft::PlayerInfoDisplayData &data) -> void;
+    auto playerInfoChanged(const minecraft::PlayerInfoDisplayData &data) -> void;
 
 protected:
     auto initializeGL() -> void override;
@@ -36,7 +36,7 @@ private slots:
 private:
     QTimer _timer;
     Scene _scene;
-    TerrainGenerator _terrainGenerator;
+    TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
     ShaderProgram _programFlat;
     ShaderProgram _programLambert;

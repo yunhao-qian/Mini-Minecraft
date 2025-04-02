@@ -59,7 +59,7 @@ minecraft::MainWindow::MainWindow(QWidget *const parent)
     connect(actionCameraControls, &QAction::triggered, cameraControlsWindow, &QWidget::show);
 
     connect(_glWidget,
-            &GLWidget::playerInfoUpdated,
+            &GLWidget::playerInfoChanged,
             playerInfoWindow,
             &PlayerInfoWindow::setPlayerInfo);
 }

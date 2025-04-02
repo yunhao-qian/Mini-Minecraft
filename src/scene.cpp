@@ -1,7 +1,7 @@
 #include "scene.h"
 
-minecraft::Scene::Scene(GLContext *const context)
-    : _terrain{context}
+minecraft::Scene::Scene()
+    : _terrain{}
     , _player{{{0.0f, 128.0f, 0.0f}}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}
 {}
 
