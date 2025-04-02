@@ -40,7 +40,9 @@ minecraft::TerrainStreamer::TerrainStreamer(GLContext *const context, Terrain *c
 minecraft::TerrainStreamer::~TerrainStreamer()
 {
     // TODO: This works only when TerrainStreamer is the only class using QThreadPool.
-    QThreadPool::globalInstance()->waitForDone();
+    const auto threadPool{QThreadPool::globalInstance()};
+    threadPool->clear();
+    threadPool->waitForDone();
 }
 
 auto minecraft::TerrainStreamer::update(const glm::vec3 &cameraPosition) -> void

@@ -11,6 +11,7 @@ enum class BlockType : std::uint8_t {
     Dirt,
     Stone,
     Water,
+    Snow,
 };
 
 } // namespace minecraft

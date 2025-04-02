@@ -175,6 +175,9 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
                 case BlockType::Water:
                     color = {0.00f, 0.00f, 0.75f};
                     break;
+                case BlockType::Snow:
+                    color = {1.00f, 1.00f, 1.00f};
+                    break;
                 default:
                     color = {1.00f, 0.00f, 1.00f};
                 }

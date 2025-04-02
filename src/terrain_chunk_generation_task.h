@@ -26,6 +26,8 @@ public:
     auto run() -> void override;
 
 private:
+    auto generateColumn(const int localX, const int localZ) -> void;
+
     std::unique_ptr<TerrainChunk> _chunk;
     std::mutex *_mutex;
     std::unordered_set<std::pair<int, int>, IntPairHash> *_pendingChunks;

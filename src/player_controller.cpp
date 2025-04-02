@@ -35,10 +35,10 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
         pose.rotateAroundLocalRight(distance);
         break;
     case Qt::Key_Left:
-        pose.rotateAroundLocalUp(distance);
+        pose.rotateAroundGlobalUp(distance);
         break;
     case Qt::Key_Right:
-        pose.rotateAroundLocalUp(-distance);
+        pose.rotateAroundGlobalUp(-distance);
         break;
     default:
         return;
