@@ -2,6 +2,10 @@
 
 #include "pose.h"
 
+#include <glm/glm.hpp>
+
+#include <algorithm>
+
 minecraft::PlayerController::PlayerController(Player *const player)
     : _player{player}
 {}
@@ -52,6 +56,10 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
         return;
     }
 
+    if (auto desiredSpeed{glm::length(desiredVelocity)}; desiredSpeed != 0.0f) {
+        desiredSpeed = std::clamp(desiredSpeed, -32.0f, 32.0f);
+        desiredVelocity = glm::normalize(desiredVelocity) * desiredSpeed;
+    }
     _player->setDesiredVelocity(desiredVelocity);
     _player->setDesiredOrientation(desiredPose.rotationMatrix());
 }
