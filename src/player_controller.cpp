@@ -8,7 +8,7 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
 {
     // TODO: Temporary logic for player movement
     auto pose{_player->pose()};
-    const auto distance{(event->modifiers() | Qt::ShiftModifier) == 0 ? 2.0f : 10.0f};
+    const auto distance{(event->modifiers() & Qt::ShiftModifier) == 0 ? 2.0f : 10.0f};
     switch (event->key()) {
     case Qt::Key_W:
         pose.moveLocalForward(distance);

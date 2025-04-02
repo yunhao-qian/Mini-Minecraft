@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <ranges>
 
 namespace {
@@ -16,7 +17,7 @@ auto random2D(const glm::vec2 position) -> glm::vec2
                       * 43758.5453f);
 }
 
-auto sampleWorleyNoise(glm::vec2 position) -> float
+auto worleyNoise(const glm::vec2 position) -> float
 {
     const auto floorPosition{glm::floor(position)};
     auto d1{3.0f};
@@ -36,32 +37,34 @@ auto sampleWorleyNoise(glm::vec2 position) -> float
             }
         }
     }
-    return d2 - d1;
+    return (d2 - d1) / std::numbers::sqrt2_v<float>;
 }
 
-auto getGrasslandHeight(const int x, const int z) -> float
+auto getGrasslandHeight(const glm::vec2 position) -> float
 {
-    // TODO: Use a better algorithm.
-    const auto noise{
-        sampleWorleyNoise({static_cast<float>(x) * 0.01f, static_cast<float>(z) * 0.01f})};
-    return noise * 32.0f + 128.0f;
+    const auto scaledPosition{position * 0.02f};
+    const auto perturbedPosition{
+        position
+        + 10.0f
+              * glm::vec2{glm::perlin(scaledPosition),
+                          glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f})}};
+    const auto scaledPerturbedPosition{perturbedPosition * 0.01f};
+    const auto noise{std::lerp(glm::perlin(scaledPerturbedPosition) * 0.5f + 0.5f,
+                               worleyNoise(scaledPerturbedPosition),
+                               1.0f / 3.0f)};
+    return noise * 36.0f + 132.0f;
 }
 
-auto getMountainHeight(const int x, const int z) -> float
+auto getMountainHeight(const glm::vec2 position) -> float
 {
-    const auto floatX{static_cast<float>(x) * 0.01f};
-    const auto floatZ{static_cast<float>(z) * 0.01f};
-
     auto total{0.0f};
-    auto frequency{2.0f};
+    auto frequency{0.02f};
     auto amplitude{0.5f};
     for ([[maybe_unused]] const auto _ : std::views::iota(0, 8)) {
-        total += std::abs(glm::perlin(glm::vec2{floatX * frequency, floatZ * frequency})
-                          * amplitude);
+        total += std::abs(glm::perlin(position * frequency) * amplitude);
         frequency *= 2.0f;
         amplitude *= 0.4f;
     }
-
     return total * 96.0f + 160.0f;
 }
 
@@ -99,21 +102,16 @@ auto minecraft::TerrainChunkGenerationTask::generateColumn(const int localX, con
         _chunk->setBlockLocal(localX, y, localZ, BlockType::Stone);
     }
 
-    const auto globalX{_chunk->minX() + localX};
-    const auto globalZ{_chunk->minZ() + localZ};
+    const glm::vec2 center{static_cast<float>(_chunk->minX() + localX) + 0.5f,
+                           static_cast<float>(_chunk->minZ() + localZ) + 0.5f};
 
-    const auto biomeInterpolation{
-        glm::smoothstep(0.2f,
-                        0.6f,
-                        glm::perlin(glm::vec2{static_cast<float>(globalX) * 0.005f,
-                                              static_cast<float>(globalZ) * 0.005f}))};
+    const auto biomeInterpolation{glm::smoothstep(0.2f, 0.6f, glm::perlin(center * 0.005f))};
 
-    const auto floatHeight{std::floor(std::lerp(getGrasslandHeight(globalX, globalZ),
-                                                getMountainHeight(globalX, globalZ),
-                                                biomeInterpolation))};
+    const auto floatHeight{
+        std::lerp(getGrasslandHeight(center), getMountainHeight(center), biomeInterpolation)};
     const auto intHeight{std::clamp(static_cast<int>(std::round(floatHeight)), 128, 256)};
 
-    if (biomeInterpolation < 0.5f) {
+    if (biomeInterpolation < 0.15f) {
         // Grassland biome
         for (const auto y : std::views::iota(128, intHeight)) {
             _chunk->setBlockLocal(localX, y, localZ, BlockType::Dirt);
