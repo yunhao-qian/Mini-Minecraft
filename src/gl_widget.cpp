@@ -91,9 +91,12 @@ auto minecraft::GLWidget::tick() -> void
     const auto dT{static_cast<float>(milliseconds - _lastTickMilliseconds) * 0.001f};
     _lastTickMilliseconds = milliseconds;
     {
-        std::lock_guard lock{_scene.playerMutex()};
-        _scene.player().updatePhysics(dT);
+        std::lock_guard playerLock{_scene.playerMutex()};
         emit playerInfoChanged(_scene.player().createPlayerInfoDisplayData());
+        {
+            std::lock_guard terrainLock{_scene.terrainMutex()};
+            _scene.player().updatePhysics(dT, _scene.terrain());
+        }
     }
     update();
 }

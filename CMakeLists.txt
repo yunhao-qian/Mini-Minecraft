@@ -33,6 +33,8 @@ set(PROJECT_SOURCES
     src/camera.cpp
     src/camera_controls_window.h
     src/camera_controls_window.cpp
+    src/aligned_box.h
+    src/aligned_box.cpp
     src/direction.h
     src/entity.h
     src/entity.cpp
@@ -44,6 +46,7 @@ set(PROJECT_SOURCES
     src/int_pair_hash.cpp
     src/main_window.h
     src/main_window.cpp
+    src/movement_mode.h
     src/player.h
     src/player.cpp
     src/player_controller.h

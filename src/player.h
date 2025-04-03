@@ -1,9 +1,12 @@
 #ifndef MINI_MINECRAFT_PLAYER_H
 #define MINI_MINECRAFT_PLAYER_H
 
+#include "aligned_box.h"
 #include "camera.h"
 #include "entity.h"
+#include "movement_mode.h"
 #include "player_info_display_data.h"
+#include "terrain.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -18,20 +21,27 @@ public:
     auto setCameraViewportSize(const int width, const int height) -> void;
     auto getSyncedCamera() -> const Camera &;
 
-    auto desiredVelocity() const -> const glm::vec3 &;
-    auto setDesiredVelocity(const glm::vec3 &desiredVelocity) -> void;
+    auto movementMode() const -> MovementMode;
+    auto setMovementMode(const MovementMode mode) -> void;
 
     auto desiredOrientation() const -> const glm::quat &;
     auto setDesiredOrientation(const glm::quat &orientation) -> void;
 
-    auto updatePhysics(const float dT) -> void;
+    auto updatePhysics(const float dT, const Terrain &terrain) -> void;
 
     auto createPlayerInfoDisplayData() const -> PlayerInfoDisplayData;
 
 private:
+    auto boxCollider() const -> AlignedBox;
+
+    auto simulateWithTerrainCollisions(const float dT, const Terrain &terrain) -> void;
+
+    auto isCloseToGround(const Terrain &terrain) const -> bool;
+
     Camera _camera;
-    glm::vec3 _desiredVelocity;
+    MovementMode _movementMode;
     glm::quat _desiredOrientation;
+    glm::vec3 _previousAcceleration;
 };
 
 } // namespace minecraft

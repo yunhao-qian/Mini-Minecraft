@@ -1,10 +1,7 @@
 #include "player_controller.h"
 
+#include "movement_mode.h"
 #include "pose.h"
-
-#include <glm/glm.hpp>
-
-#include <algorithm>
 
 minecraft::PlayerController::PlayerController(Player *const player)
     : _player{player}
@@ -13,31 +10,44 @@ minecraft::PlayerController::PlayerController(Player *const player)
 auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) -> void
 {
     const auto shiftPressed{(event->modifiers() & Qt::ShiftModifier) != 0};
-    const auto deltaSpeed{shiftPressed ? 5.0f : 1.0f};
-    const auto deltaAngle{shiftPressed ? 20.0f : 4.0f};
+    const auto acceleration{shiftPressed ? 60.0f : 12.0f};
+    const auto deltaAngle{shiftPressed ? 30.0f : 6.0f};
 
-    auto desiredVelocity{_player->desiredVelocity()};
     Pose desiredPose;
     desiredPose.setOrientation(_player->desiredOrientation());
 
     switch (event->key()) {
+    case Qt::Key_Space:
+        if (_player->movementMode() == MovementMode::Walk) {
+            _player->setVelocity(_player->velocity()
+                                 + glm::vec3{0.0f, shiftPressed ? 12.0f : 6.0f, 0.0f});
+        }
+        return;
+    case Qt::Key_F:
+        // Toggle the flight mode.
+        if (_player->movementMode() == MovementMode::Fly) {
+            _player->setMovementMode(MovementMode::Fall);
+        } else {
+            _player->setMovementMode(MovementMode::Fly);
+        }
+        return;
     case Qt::Key_W:
-        desiredVelocity += _player->pose().forward() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() + _player->pose().forward() * acceleration);
         break;
     case Qt::Key_S:
-        desiredVelocity -= _player->pose().forward() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() - _player->pose().forward() * acceleration);
         break;
     case Qt::Key_A:
-        desiredVelocity -= _player->pose().right() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() - _player->pose().right() * acceleration);
         break;
     case Qt::Key_D:
-        desiredVelocity += _player->pose().right() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() + _player->pose().right() * acceleration);
         break;
     case Qt::Key_Q:
-        desiredVelocity -= _player->pose().up() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() - _player->pose().up() * acceleration);
         break;
     case Qt::Key_E:
-        desiredVelocity += _player->pose().up() * deltaSpeed;
+        _player->setAcceleration(_player->acceleration() + _player->pose().up() * acceleration);
         break;
     case Qt::Key_Up:
         desiredPose.rotateAroundLocalRight(-deltaAngle);
@@ -55,10 +65,5 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
         return;
     }
 
-    if (auto desiredSpeed{glm::length(desiredVelocity)}; desiredSpeed != 0.0f) {
-        desiredSpeed = std::clamp(desiredSpeed, -32.0f, 32.0f);
-        desiredVelocity = glm::normalize(desiredVelocity) * desiredSpeed;
-    }
-    _player->setDesiredVelocity(desiredVelocity);
     _player->setDesiredOrientation(desiredPose.orientation());
 }
