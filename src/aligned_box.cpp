@@ -23,37 +23,38 @@ auto minecraft::AlignedBox::sweep(const glm::vec3 &velocity,
                                   float &hitTime,
                                   glm::vec3 &hitNormal) const -> bool
 {
-    auto timeMin{0.0f};
-    auto timeMax{hitTime};
+    auto minTime{0.0f};
+    auto maxTime{hitTime};
     glm::vec3 firstHitNormal;
 
-    const auto displacementMin{other.minP() - _maxP};
-    const auto displacementMax{other.maxP() - _minP};
+    const auto minDisplacement{other.minP() - _maxP};
+    const auto maxDisplacement{other.maxP() - _minP};
+
     for (const auto i : std::views::iota(0, 3)) {
         if (velocity[i] > 0.0f) {
-            if (const auto axisTimeMin{displacementMin[i] / velocity[i]}; axisTimeMin > timeMin) {
-                timeMin = axisTimeMin;
+            if (const auto axisMinTime{minDisplacement[i] / velocity[i]}; axisMinTime > minTime) {
+                minTime = axisMinTime;
                 firstHitNormal = {0.0f, 0.0f, 0.0f};
                 firstHitNormal[i] = 1.0f;
             }
-            timeMax = std::min(timeMax, displacementMax[i] / velocity[i]);
+            maxTime = std::min(maxTime, maxDisplacement[i] / velocity[i]);
         } else if (velocity[i] < 0.0f) {
-            if (const auto axisTimeMin{displacementMax[i] / velocity[i]}; axisTimeMin > timeMin) {
-                timeMin = axisTimeMin;
+            if (const auto axisMinTime{maxDisplacement[i] / velocity[i]}; axisMinTime > minTime) {
+                minTime = axisMinTime;
                 firstHitNormal = {0.0f, 0.0f, 0.0f};
                 firstHitNormal[i] = -1.0f;
             }
-            timeMax = std::min(timeMax, displacementMin[i] / velocity[i]);
+            maxTime = std::min(maxTime, minDisplacement[i] / velocity[i]);
         } else {
-            if (displacementMin[i] <= 0.0f && 0.0f <= displacementMax[i]) {
+            if (minDisplacement[i] <= 0.0f && 0.0f <= maxDisplacement[i]) {
                 continue;
             }
             return false;
         }
     }
 
-    if (0.0f < timeMin && timeMin <= timeMax && timeMin <= hitTime) {
-        hitTime = timeMin;
+    if (0.0f < minTime && minTime <= maxTime && minTime <= hitTime) {
+        hitTime = minTime;
         hitNormal = firstHitNormal;
         return true;
     }

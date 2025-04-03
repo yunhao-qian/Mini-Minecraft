@@ -80,6 +80,13 @@ auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void
     _playerController.keyPressEvent(event);
 }
 
+auto minecraft::GLWidget::mousePressEvent(QMouseEvent *const event) -> void
+{
+    std::lock_guard playerLock{_scene.playerMutex()};
+    std::lock_guard terrainLock{_scene.terrainMutex()};
+    _playerController.mousePressEvent(event, _scene.terrain());
+}
+
 auto minecraft::GLWidget::tick() -> void
 {
     const auto milliseconds{QDateTime::currentMSecsSinceEpoch()};

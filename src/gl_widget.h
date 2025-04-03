@@ -30,6 +30,8 @@ protected:
 
     auto keyPressEvent(QKeyEvent *const event) -> void override;
 
+    auto mousePressEvent(QMouseEvent *const event) -> void override;
+
 private slots:
     auto tick() -> void;
 

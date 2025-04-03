@@ -3,6 +3,8 @@
 #include "movement_mode.h"
 #include "pose.h"
 
+#include <ranges>
+
 minecraft::PlayerController::PlayerController(Player *const player)
     : _player{player}
 {}
@@ -70,4 +72,68 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
     }
 
     _player->setDesiredOrientation(desiredPose.orientation());
+}
+
+auto minecraft::PlayerController::mousePressEvent([[maybe_unused]] const QMouseEvent *const event,
+                                                  Terrain &terrain) -> void
+{
+    if (event->button() != Qt::LeftButton) {
+        return;
+    }
+    const auto &cameraPose{_player->getSyncedCamera().pose()};
+    const auto blockPosition{
+        rayMarch(terrain, cameraPose.position(), cameraPose.forward(), 0.1f, 3.0f)};
+    if (!blockPosition.has_value()) {
+        return;
+    }
+    terrain.setBlockGlobal(blockPosition->x, blockPosition->y, blockPosition->z, BlockType::Empty);
+    terrain.getChunk(blockPosition->x, blockPosition->z)->markSelfAndNeighborsDirty();
+}
+
+auto minecraft::PlayerController::rayMarch(const Terrain &terrain,
+                                           const glm::vec3 &origin,
+                                           const glm::vec3 &direction,
+                                           const float minDistance,
+                                           const float maxDistance) const
+    -> std::optional<glm::ivec3>
+{
+    auto blockPosition{glm::ivec3{glm::floor(origin + direction * minDistance)}};
+    auto distance{minDistance};
+
+    do {
+        if (terrain.getBlockGlobal(blockPosition.x, blockPosition.y, blockPosition.z)
+            != BlockType::Empty) {
+            return {blockPosition};
+        }
+
+        const auto position{origin + direction * distance};
+
+        auto boundaryDistance{maxDistance};
+        auto nextBlockPosition{blockPosition};
+
+        for (const auto i : std::views::iota(0, 3)) {
+            if (direction[i] > 0.0f) {
+                const auto boundary{static_cast<float>(blockPosition[i] + 1)};
+                const auto axisDistance{(boundary - position[i]) / direction[i]};
+                if (axisDistance < boundaryDistance) {
+                    boundaryDistance = axisDistance;
+                    nextBlockPosition = blockPosition;
+                    ++nextBlockPosition[i];
+                }
+            } else if (direction[i] < 0.0f) {
+                const auto boundary{static_cast<float>(blockPosition[i])};
+                const auto axisDistance{(boundary - position[i]) / direction[i]};
+                if (axisDistance < boundaryDistance) {
+                    boundaryDistance = axisDistance;
+                    nextBlockPosition = blockPosition;
+                    --nextBlockPosition[i];
+                }
+            }
+        }
+
+        blockPosition = nextBlockPosition;
+        distance += boundaryDistance;
+    } while (distance <= maxDistance);
+
+    return std::nullopt;
 }

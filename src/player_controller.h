@@ -3,7 +3,14 @@
 
 #include "player.h"
 
+#include "terrain.h"
+
+#include <glm/glm.hpp>
+
 #include <QKeyEvent>
+#include <QMouseEvent>
+
+#include <optional>
 
 namespace minecraft {
 
@@ -14,7 +21,15 @@ public:
 
     auto keyPressEvent(const QKeyEvent *const event) -> void;
 
+    auto mousePressEvent(const QMouseEvent *const event, Terrain &terrain) -> void;
+
 private:
+    auto rayMarch(const Terrain &terrain,
+                  const glm::vec3 &origin,
+                  const glm::vec3 &direction,
+                  const float minDistance,
+                  const float maxDistance) const -> std::optional<glm::ivec3>;
+
     Player *_player;
 };
 
