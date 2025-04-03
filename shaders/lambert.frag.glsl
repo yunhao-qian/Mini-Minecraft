@@ -8,6 +8,7 @@ in vec3 v_color;
 out vec4 f_color;
 
 const vec3 lightDirection = normalize(vec3(0.5, 1.0, 0.75));
+const vec3 backgroundColor = vec3(0.37, 0.74, 1.0);
 
 void main()
 {
@@ -24,9 +25,8 @@ void main()
     float lightIntensity = diffuseTerm + ambientTerm;
 
     float distanceToCamera = length(v_viewPosition);
-    // Distance 192 -> alpha = 1.0
-    // Distance 256 -> alpha = 0.0
-    float alpha = clamp((256.0 - distanceToCamera) / 64.0, 0.0, 1.0);
+    float opacity = exp(distanceToCamera * -0.001);
+    opacity -= smoothstep(192.0, 256.0, distanceToCamera) * exp(256 * -0.001);
 
-    f_color = vec4(v_color * lightIntensity, alpha);
+    f_color = vec4(mix(backgroundColor, v_color * lightIntensity, opacity), 1.0);
 }

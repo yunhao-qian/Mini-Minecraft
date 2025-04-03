@@ -34,10 +34,6 @@ auto minecraft::GLWidget::initializeGL() -> void
     debugGLError();
     glClearColor(0.37f, 0.74f, 1.0f, 1.0f);
     debugGLError();
-    glEnable(GL_BLEND);
-    debugGLError();
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    debugGLError();
 
     if (!_programFlat.create(":/shaders/flat.vert.glsl",
                              ":/shaders/flat.frag.glsl",
