@@ -17,7 +17,7 @@ public:
 
     auto setViewportSize(const int width, const int height) -> void;
 
-    auto viewProjectionMatrix() const -> glm::mat4;
+    auto projectionMatrix() const -> const glm::mat4 &;
 
 private:
     auto updateProjectionMatrix() -> void;

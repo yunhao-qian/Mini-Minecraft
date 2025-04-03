@@ -34,13 +34,17 @@ auto minecraft::GLWidget::initializeGL() -> void
     debugGLError();
     glClearColor(0.37f, 0.74f, 1.0f, 1.0f);
     debugGLError();
+    glEnable(GL_BLEND);
+    debugGLError();
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    debugGLError();
 
     if (!_programFlat.create(":/shaders/flat.vert.glsl",
                              ":/shaders/flat.frag.glsl",
-                             {"u_viewProjectionMatrix"})
+                             {"u_viewMatrix", "u_projectionMatrix"})
         || !_programLambert.create(":/shaders/lambert.vert.glsl",
                                    ":/shaders/lambert.frag.glsl",
-                                   {"u_viewProjectionMatrix"})) {
+                                   {"u_viewMatrix", "u_projectionMatrix"})) {
         qFatal("Failed to create one or more shader programs");
     }
 }
@@ -57,13 +61,17 @@ auto minecraft::GLWidget::paintGL() -> void
     debugGLError();
 
     glm::vec3 cameraPosition;
-    glm::mat4 viewProjectionMatrix;
+    glm::mat4 viewMatrix;
+    glm::mat4 projectionMatrix;
     {
         std::lock_guard lock{_scene.playerMutex()};
-        cameraPosition = _scene.player().pose().position();
-        viewProjectionMatrix = _scene.player().getSyncedCamera().viewProjectionMatrix();
+        const auto &camera{_scene.player().getSyncedCamera()};
+        cameraPosition = camera.pose().position();
+        viewMatrix = camera.pose().viewMatrix();
+        projectionMatrix = camera.projectionMatrix();
     }
-    _programLambert.setUniform("u_viewProjectionMatrix", viewProjectionMatrix);
+    _programLambert.setUniform("u_viewMatrix", viewMatrix);
+    _programLambert.setUniform("u_projectionMatrix", projectionMatrix);
     _programLambert.useProgram();
 
     {

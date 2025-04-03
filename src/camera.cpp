@@ -27,9 +27,9 @@ auto minecraft::Camera::setViewportSize(const int width, const int height) -> vo
     updateProjectionMatrix();
 }
 
-auto minecraft::Camera::viewProjectionMatrix() const -> glm::mat4
+auto minecraft::Camera::projectionMatrix() const -> const glm::mat4 &
 {
-    return _projectionMatrix * _pose.viewMatrix();
+    return _projectionMatrix;
 }
 
 auto minecraft::Camera::updateProjectionMatrix() -> void
