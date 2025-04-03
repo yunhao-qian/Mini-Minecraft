@@ -44,10 +44,14 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
         _player->setAcceleration(_player->acceleration() + _player->pose().right() * acceleration);
         break;
     case Qt::Key_Q:
-        _player->setAcceleration(_player->acceleration() - _player->pose().up() * acceleration);
+        if (_player->movementMode() == MovementMode::Fly) {
+            _player->setAcceleration(_player->acceleration() - _player->pose().up() * acceleration);
+        }
         break;
     case Qt::Key_E:
-        _player->setAcceleration(_player->acceleration() + _player->pose().up() * acceleration);
+        if (_player->movementMode() == MovementMode::Fly) {
+            _player->setAcceleration(_player->acceleration() + _player->pose().up() * acceleration);
+        }
         break;
     case Qt::Key_Up:
         desiredPose.rotateAroundLocalRight(-deltaAngle);
