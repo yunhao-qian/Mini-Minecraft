@@ -187,8 +187,8 @@ auto minecraft::Player::isCloseToGround(const Terrain &terrain) const -> bool
     const glm::ivec2 minP{glm::floor(glm::vec2{playerBox.minP().x, playerBox.minP().z})};
     const glm::ivec2 maxP{glm::floor(glm::vec2{playerBox.maxP().x, playerBox.maxP().z}) + 1.0f};
     const auto groundY{static_cast<int>(roundedY) - 1};
-    for (const auto x : std::views::iota(minP.x, maxP.x)) {
-        for (const auto z : std::views::iota(minP.y, maxP.y)) {
+    for (const auto x : std::views::iota(minP[0], maxP[0])) {
+        for (const auto z : std::views::iota(minP[1], maxP[1])) {
             if (terrain.getBlockGlobal(x, groundY, z) != BlockType::Empty) {
                 return true;
             }

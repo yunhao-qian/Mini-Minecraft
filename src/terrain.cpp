@@ -38,6 +38,9 @@ auto minecraft::Terrain::setChunk(std::unique_ptr<TerrainChunk> chunk) -> void
 
 auto minecraft::Terrain::getBlockGlobal(const int x, const int y, const int z) const -> BlockType
 {
+    if (y < 0 || y >= TerrainChunk::SizeY) {
+        return BlockType::Empty;
+    }
     const auto chunk{getChunk(x, z)};
     if (chunk == nullptr) {
         return BlockType::Empty;
@@ -48,6 +51,9 @@ auto minecraft::Terrain::getBlockGlobal(const int x, const int y, const int z) c
 auto minecraft::Terrain::setBlockGlobal(const int x, const int y, const int z, const BlockType block)
     -> void
 {
+    if (y < 0 || y >= TerrainChunk::SizeY) {
+        return;
+    }
     const auto chunk{getChunk(x, z)};
     if (chunk == nullptr) {
         return;
