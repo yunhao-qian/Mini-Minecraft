@@ -98,7 +98,8 @@ auto minecraft::ShaderProgram::setUniform(const QString &name, const GLint value
     if (!location.has_value()) {
         return;
     }
-    _context->glUniform1ui(*location, value);
+    _context->glUniform1i(*location, value);
+    _context->debugGLError();
 }
 
 auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void

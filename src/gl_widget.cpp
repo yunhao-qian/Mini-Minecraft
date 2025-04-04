@@ -130,10 +130,11 @@ auto minecraft::GLWidget::tick() -> void
 
 auto minecraft::GLWidget::loadTexture(const QString &fileName) -> GLuint
 {
-    const QImage originalImage{fileName};
+    QImage originalImage{fileName};
     if (originalImage.isNull()) {
         qFatal() << "Failed to load texture image" << fileName;
     }
+    originalImage.mirror();
     const auto convertedImage{originalImage.convertToFormat(QImage::Format_RGBA8888)};
     GLuint textureId{0u};
     glGenTextures(1, &textureId);

@@ -52,30 +52,34 @@ public:
 
 private:
     static constexpr std::array<std::array<glm::ivec3, 4>, 6> VertexPositions{{
-        {{{1, 1, 1}, {1, 0, 1}, {1, 0, 0}, {1, 1, 0}}},
-        {{{0, 1, 0}, {0, 0, 0}, {0, 0, 1}, {0, 1, 1}}},
-        {{{0, 1, 0}, {0, 1, 1}, {1, 1, 1}, {1, 1, 0}}},
-        {{{1, 0, 0}, {1, 0, 1}, {0, 0, 1}, {0, 0, 0}}},
-        {{{0, 1, 1}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}}},
-        {{{1, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}}},
+        {{{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}}},
+        {{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}}},
+        {{{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}}},
+        {{{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}}},
+        {{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}},
+        {{{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}}},
     }};
 
     static constexpr std::array<glm::ivec3, 6> FaceNormals{
         {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
     static constexpr std::array<glm::ivec3, 6> FaceTangents{
-        {{0, -1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, 1}, {0, -1, 0}, {0, -1, 0}}};
+        {{0, 1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}}};
 
     static constexpr std::array<glm::ivec2, 4> GrassTopTextureCoords{
-        {{8, 2}, {8, 3}, {9, 3}, {9, 2}}};
+        {{8, 13}, {9, 13}, {9, 14}, {8, 14}}};
     static constexpr std::array<glm::ivec2, 4> GrassSideTextureCoords{
-        {{3, 0}, {3, 1}, {4, 1}, {4, 0}}};
-    static constexpr std::array<glm::ivec2, 4> DirtTextureCoords{{{2, 0}, {2, 1}, {3, 1}, {3, 0}}};
-    static constexpr std::array<glm::ivec2, 4> StoneTextureCoords{{{1, 0}, {1, 1}, {2, 1}, {2, 0}}};
+        {{3, 15}, {4, 15}, {4, 16}, {3, 16}}};
+
+    static constexpr std::array<glm::ivec2, 4> DirtTextureCoords{
+        {{2, 15}, {3, 15}, {3, 16}, {2, 16}}};
+    static constexpr std::array<glm::ivec2, 4> StoneTextureCoords{
+        {{1, 15}, {2, 15}, {2, 16}, {1, 16}}};
     static constexpr std::array<glm::ivec2, 4> WaterTextureCoords{
-        {{13, 12}, {13, 13}, {14, 13}, {14, 12}}};
-    static constexpr std::array<glm::ivec2, 4> SnowTextureCoords{{{2, 4}, {2, 5}, {3, 5}, {3, 4}}};
+        {{13, 3}, {14, 3}, {14, 4}, {13, 4}}};
+    static constexpr std::array<glm::ivec2, 4> SnowTextureCoords{
+        {{2, 11}, {3, 11}, {3, 12}, {2, 12}}};
     static constexpr std::array<glm::ivec2, 4> UnknownTextureCoords{
-        {{8, 11}, {8, 12}, {9, 12}, {9, 11}}};
+        {{8, 5}, {9, 5}, {9, 6}, {8, 6}}};
 
     VertexArrayHelper<Vertex> _vertexArrayHelper;
 };

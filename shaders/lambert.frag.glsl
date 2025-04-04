@@ -28,6 +28,7 @@ void main()
         vec3 faceBitangent = normalize(cross(faceNormal, faceTangent));
         mat3 tbnMatrix = mat3(faceTangent, faceBitangent, faceNormal);
         vec3 tangentSpaceNormal = textureNormal.xyz * 2.0 - 1.0;
+        tangentSpaceNormal.x = -tangentSpaceNormal.x;
         fragmentNormal = normalize(tbnMatrix * tangentSpaceNormal);
     }
 
