@@ -1,15 +1,5 @@
 #include "terrain_chunk.h"
 
-minecraft::TerrainChunkDrawDelegateBase::TerrainChunkDrawDelegateBase(const TerrainChunk *const chunk)
-    : _chunk{chunk}
-    , _dirty{true}
-{}
-
-auto minecraft::TerrainChunkDrawDelegateBase::markDirty() -> void
-{
-    _dirty = true;
-}
-
 minecraft::TerrainChunk::TerrainChunk(GLContext *const context, const int minX, const int minZ)
     : _context{context}
     , _minX{minX}
@@ -140,10 +130,28 @@ auto minecraft::TerrainChunk::markSelfAndNeighborsDirty() -> void
     }
 }
 
-auto minecraft::TerrainChunk::draw() -> void
+auto minecraft::TerrainChunk::prepareDraw() -> void
+{
+    if (!_visible) {
+        return;
+    }
+    if (_drawDelegate == nullptr) {
+        _drawDelegate = std::make_unique<TerrainChunkDrawDelegate>(_context, this);
+    }
+    _drawDelegate->prepareDraw();
+}
+
+auto minecraft::TerrainChunk::drawSolidBlocks() -> void
 {
     if (_visible && _drawDelegate != nullptr) {
-        _drawDelegate->draw();
+        _drawDelegate->drawSolidBlocks();
+    }
+}
+
+auto minecraft::TerrainChunk::drawLiquidBlocks() -> void
+{
+    if (_visible && _drawDelegate != nullptr) {
+        _drawDelegate->drawLiquidBlocks();
     }
 }
 

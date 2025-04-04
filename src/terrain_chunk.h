@@ -4,85 +4,13 @@
 #include "block_type.h"
 #include "direction.h"
 #include "gl_context.h"
-#include "vertex.h"
-#include "vertex_array_helper.h"
-
-#include <glm/glm.hpp>
+#include "terrain_chunk_draw_delegate.h"
 
 #include <array>
 #include <memory>
-#include <ranges>
 #include <utility>
-#include <vector>
 
 namespace minecraft {
-
-class TerrainChunk;
-
-class TerrainChunkDrawDelegateBase
-{
-public:
-    TerrainChunkDrawDelegateBase(const TerrainChunk *const chunk);
-    virtual ~TerrainChunkDrawDelegateBase() = default;
-
-    auto markDirty() -> void;
-
-    virtual auto vertexType() const -> VertexType = 0;
-
-    virtual auto prepareDraw() -> void = 0;
-
-    virtual auto draw() -> void = 0;
-
-protected:
-    const TerrainChunk *_chunk;
-    bool _dirty;
-};
-
-template<typename Vertex>
-class TerrainChunkDrawDelegate : public TerrainChunkDrawDelegateBase
-{
-public:
-    TerrainChunkDrawDelegate(const TerrainChunk *const chunk, GLContext *const context);
-
-    auto vertexType() const -> VertexType override;
-
-    auto prepareDraw() -> void override;
-
-    auto draw() -> void override;
-
-private:
-    static constexpr std::array<std::array<glm::ivec3, 4>, 6> VertexPositions{{
-        {{{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}}},
-        {{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}}},
-        {{{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}}},
-        {{{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}}},
-        {{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}},
-        {{{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}}},
-    }};
-
-    static constexpr std::array<glm::ivec3, 6> FaceNormals{
-        {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
-    static constexpr std::array<glm::ivec3, 6> FaceTangents{
-        {{0, 1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}}};
-
-    static constexpr std::array<glm::ivec2, 4> GrassTopTextureCoords{
-        {{8, 13}, {9, 13}, {9, 14}, {8, 14}}};
-    static constexpr std::array<glm::ivec2, 4> GrassSideTextureCoords{
-        {{3, 15}, {4, 15}, {4, 16}, {3, 16}}};
-
-    static constexpr std::array<glm::ivec2, 4> DirtTextureCoords{
-        {{2, 15}, {3, 15}, {3, 16}, {2, 16}}};
-    static constexpr std::array<glm::ivec2, 4> StoneTextureCoords{
-        {{1, 15}, {2, 15}, {2, 16}, {1, 16}}};
-    static constexpr std::array<glm::ivec2, 4> WaterTextureCoords{
-        {{13, 3}, {14, 3}, {14, 4}, {13, 4}}};
-    static constexpr std::array<glm::ivec2, 4> SnowTextureCoords{
-        {{2, 11}, {3, 11}, {3, 12}, {2, 12}}};
-    static constexpr std::array<glm::ivec2, 4> UnknownTextureCoords{
-        {{8, 5}, {9, 5}, {9, 6}, {8, 6}}};
-
-    VertexArrayHelper<Vertex> _vertexArrayHelper;
-};
 
 class TerrainChunk
 {
@@ -108,10 +36,10 @@ public:
     auto markDirty() -> void;
     auto markSelfAndNeighborsDirty() -> void;
 
-    template<typename Vertex>
     auto prepareDraw() -> void;
 
-    auto draw() -> void;
+    auto drawSolidBlocks() -> void;
+    auto drawLiquidBlocks() -> void;
 
     auto releaseDrawDelegate() -> void;
 
@@ -131,133 +59,10 @@ private:
     std::array<std::array<std::array<BlockType, SizeZ>, SizeY>, SizeX> _blocks;
     std::array<TerrainChunk *, 4> _neighbors;
     bool _visible;
-    std::unique_ptr<TerrainChunkDrawDelegateBase> _drawDelegate;
+    std::unique_ptr<TerrainChunkDrawDelegate> _drawDelegate;
 };
 
 } // namespace minecraft
-
-template<typename Vertex>
-minecraft::TerrainChunkDrawDelegate<Vertex>::TerrainChunkDrawDelegate(
-    const TerrainChunk *const chunk, GLContext *const context)
-    : TerrainChunkDrawDelegateBase{chunk}
-    , _vertexArrayHelper{context}
-{}
-
-template<typename Vertex>
-auto minecraft::TerrainChunkDrawDelegate<Vertex>::vertexType() const -> VertexType
-{
-    return VertexTraits<Vertex>::Type;
-}
-
-template<typename Vertex>
-auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
-{
-    if (!_dirty) {
-        return;
-    }
-
-    std::vector<Vertex> vertices;
-    std::vector<GLuint> indices;
-
-    for (const auto localX : std::views::iota(0, TerrainChunk::SizeX)) {
-        for (const auto localY : std::views::iota(0, TerrainChunk::SizeY)) {
-            for (const auto localZ : std::views::iota(0, TerrainChunk::SizeZ)) {
-                const auto block{_chunk->getBlockLocal(localX, localY, localZ)};
-                if (block == BlockType::Empty) {
-                    continue;
-                }
-
-                const glm::ivec3 blockPosition{_chunk->minX() + localX,
-                                               localY,
-                                               _chunk->minZ() + localZ};
-
-                for (const auto &[direction, faceIndex] : {
-                         std::pair{Direction::PositiveX, 0},
-                         std::pair{Direction::NegativeX, 1},
-                         std::pair{Direction::PositiveY, 2},
-                         std::pair{Direction::NegativeY, 3},
-                         std::pair{Direction::PositiveZ, 4},
-                         std::pair{Direction::NegativeZ, 5},
-                     }) {
-                    if (_chunk->getNeighborBlockLocal(localX, localY, localZ, direction)
-                        != BlockType::Empty) {
-                        continue;
-                    }
-                    {
-                        const auto indexOffset{static_cast<GLuint>(vertices.size())};
-                        for (const auto index : {0u, 1u, 2u, 0u, 2u, 3u}) {
-                            indices.push_back(indexOffset + index);
-                        }
-                    }
-
-                    const auto &vertexPositions{VertexPositions[faceIndex]};
-
-                    const std::array<glm::ivec2, 4> *textureCoords{nullptr};
-                    switch (block) {
-                    case BlockType::Grass:
-                        if (direction == Direction::PositiveY) {
-                            textureCoords = &GrassTopTextureCoords;
-                        } else if (direction == Direction::NegativeY) {
-                            textureCoords = &DirtTextureCoords;
-                        } else {
-                            textureCoords = &GrassSideTextureCoords;
-                        }
-                        break;
-                    case BlockType::Dirt:
-                        textureCoords = &DirtTextureCoords;
-                        break;
-                    case BlockType::Stone:
-                        textureCoords = &StoneTextureCoords;
-                        break;
-                    case BlockType::Water:
-                        textureCoords = &WaterTextureCoords;
-                        break;
-                    case BlockType::Snow:
-                        textureCoords = &SnowTextureCoords;
-                        break;
-                    default:
-                        textureCoords = &UnknownTextureCoords;
-                        break;
-                    }
-
-                    const auto normal{FaceNormals[faceIndex]};
-                    const auto tangent{FaceTangents[faceIndex]};
-
-                    for (const auto vertexIndex : std::views::iota(0, 4)) {
-                        vertices.push_back({
-                            .position{blockPosition + vertexPositions[vertexIndex]},
-                            .textureCoords{glm::vec2{(*textureCoords)[vertexIndex]} / 16.0f},
-                            .normal{normal},
-                            .tangent{tangent},
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    _vertexArrayHelper.setVertices(vertices, GL_STATIC_DRAW);
-    _vertexArrayHelper.setIndices(indices, GL_STATIC_DRAW);
-    _dirty = false;
-}
-
-template<typename Vertex>
-auto minecraft::TerrainChunkDrawDelegate<Vertex>::draw() -> void
-{
-    _vertexArrayHelper.drawElements(GL_TRIANGLES);
-}
-
-template<typename Vertex>
-auto minecraft::TerrainChunk::prepareDraw() -> void
-{
-    if (!_visible) {
-        return;
-    }
-    if (_drawDelegate == nullptr || _drawDelegate->vertexType() != VertexTraits<Vertex>::Type) {
-        _drawDelegate = std::make_unique<TerrainChunkDrawDelegate<Vertex>>(this, _context);
-    }
-    _drawDelegate->prepareDraw();
-}
 
 template<typename Self>
 auto minecraft::TerrainChunk::getNeighborPointer(Self &self, const Direction direction)

@@ -1,8 +1,5 @@
 #include "gl_widget.h"
 
-#include "vertex.h"
-
-#include <OpenGL/gl.h>
 #include <glm/glm.hpp>
 
 #include <QDateTime>
@@ -37,11 +34,18 @@ auto minecraft::GLWidget::initializeGL() -> void
     debugGLError();
     glClearColor(0.37f, 0.74f, 1.0f, 1.0f);
     debugGLError();
+    glEnable(GL_BLEND);
+    debugGLError();
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    debugGLError();
 
-    if (!_program
-             .create(":/shaders/lambert.vert.glsl",
-                     ":/shaders/lambert.frag.glsl",
-                     {"u_viewMatrix", "u_projectionMatrix", "u_colorTexture", "u_normalTexture"})) {
+    if (!_program.create(":/shaders/lambert.vert.glsl",
+                         ":/shaders/lambert.frag.glsl",
+                         {"u_viewMatrix",
+                          "u_projectionMatrix",
+                          "u_isLiquid",
+                          "u_colorTexture",
+                          "u_normalTexture"})) {
         qFatal() << "Failed to create one or more shader programs";
     }
 
@@ -89,8 +93,11 @@ auto minecraft::GLWidget::paintGL() -> void
     {
         std::lock_guard lock{_scene.terrainMutex()};
         _terrainStreamer.update(cameraPosition);
-        _scene.terrain().prepareDraw<LambertVertex>();
-        _scene.terrain().draw();
+        _scene.terrain().prepareDraw();
+        _program.setUniform("u_isLiquid", 0);
+        _scene.terrain().drawSolidBlocks();
+        _program.setUniform("u_isLiquid", 1);
+        _scene.terrain().drawLiquidBlocks();
     }
 }
 

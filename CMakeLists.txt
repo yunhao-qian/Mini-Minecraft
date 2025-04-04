@@ -64,6 +64,8 @@ set(PROJECT_SOURCES
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
+    src/terrain_chunk_draw_delegate.h
+    src/terrain_chunk_draw_delegate.cpp
     src/terrain_chunk_generation_task.h
     src/terrain_chunk_generation_task.cpp
     src/terrain_streamer.h

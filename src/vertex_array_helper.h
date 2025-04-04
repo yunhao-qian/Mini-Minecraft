@@ -71,6 +71,9 @@ template<typename Vertex>
 auto minecraft::VertexArrayHelper<Vertex>::setVertices(const std::vector<Vertex> &vertices,
                                                        const GLenum usage) -> void
 {
+    if (vertices.empty()) {
+        return;
+    }
     _context->glBindBuffer(GL_ARRAY_BUFFER, _vbo);
     _context->debugGLError();
     _context->glBufferData(GL_ARRAY_BUFFER,
@@ -89,6 +92,10 @@ template<typename Vertex>
 auto minecraft::VertexArrayHelper<Vertex>::setIndices(const std::vector<GLuint> &indices,
                                                       const GLenum usage) -> void
 {
+    if (indices.empty()) {
+        _elementCount = 0;
+        return;
+    }
     _context->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
     _context->debugGLError();
     _context->glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -102,6 +109,9 @@ auto minecraft::VertexArrayHelper<Vertex>::setIndices(const std::vector<GLuint> 
 template<typename Vertex>
 auto minecraft::VertexArrayHelper<Vertex>::drawElements(const GLenum mode) const -> void
 {
+    if (_elementCount <= 0) {
+        return;
+    }
     _context->glBindVertexArray(_vao);
     _context->debugGLError();
     if (!_ownsVAO) {

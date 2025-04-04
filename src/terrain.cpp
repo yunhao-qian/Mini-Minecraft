@@ -61,9 +61,23 @@ auto minecraft::Terrain::setBlockGlobal(const int x, const int y, const int z, c
     chunk->setBlockLocal(x - chunk->minX(), y, z - chunk->minZ(), block);
 }
 
-auto minecraft::Terrain::draw() -> void
+auto minecraft::Terrain::prepareDraw() -> void
 {
     for (const auto &[_, chunk] : _chunks) {
-        chunk->draw();
+        chunk->prepareDraw();
+    }
+}
+
+auto minecraft::Terrain::drawSolidBlocks() -> void
+{
+    for (const auto &[_, chunk] : _chunks) {
+        chunk->drawSolidBlocks();
+    }
+}
+
+auto minecraft::Terrain::drawLiquidBlocks() -> void
+{
+    for (const auto &[_, chunk] : _chunks) {
+        chunk->drawLiquidBlocks();
     }
 }

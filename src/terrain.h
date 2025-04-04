@@ -23,10 +23,10 @@ public:
     template<typename Function>
     auto forEachChunk(Function function) -> void;
 
-    template<typename Vertex>
     auto prepareDraw() -> void;
 
-    auto draw() -> void;
+    auto drawSolidBlocks() -> void;
+    auto drawLiquidBlocks() -> void;
 
 private:
     template<typename Self>
@@ -42,14 +42,6 @@ auto minecraft::Terrain::forEachChunk(Function function) -> void
 {
     for (const auto &[_, chunk] : _chunks) {
         function(chunk.get());
-    }
-}
-
-template<typename Vertex>
-auto minecraft::Terrain::prepareDraw() -> void
-{
-    for (const auto &[_, chunk] : _chunks) {
-        chunk->prepareDraw<Vertex>();
     }
 }
 
