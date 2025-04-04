@@ -7,6 +7,7 @@
 
 #include <QString>
 
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -24,10 +25,13 @@ public:
 
     auto useProgram() const -> void;
 
+    auto setUniform(const QString &name, const GLint value) const -> void;
     auto setUniform(const QString &name, const glm::mat4 &value) const -> void;
 
 private:
     auto compileShader(const GLuint shader, const QString &filePath) const -> bool;
+
+    auto findUniformLocation(const QString &name) const -> std::optional<GLuint>;
 
     GLContext *_context;
     GLuint _vertexShader;

@@ -2,9 +2,11 @@
 
 #include "vertex.h"
 
+#include <OpenGL/gl.h>
 #include <glm/glm.hpp>
 
 #include <QDateTime>
+#include <QImage>
 #include <QString>
 
 #include <mutex>
@@ -16,8 +18,9 @@ minecraft::GLWidget::GLWidget(QWidget *const parent)
     , _scene{}
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
-    , _programFlat{this}
-    , _programLambert{this}
+    , _program{this}
+    , _colorTexture{0u}
+    , _normalTexture{0u}
 {
     setFocusPolicy(Qt::StrongFocus);
     connect(&_timer, &QTimer::timeout, this, &GLWidget::tick);
@@ -35,14 +38,15 @@ auto minecraft::GLWidget::initializeGL() -> void
     glClearColor(0.37f, 0.74f, 1.0f, 1.0f);
     debugGLError();
 
-    if (!_programFlat.create(":/shaders/flat.vert.glsl",
-                             ":/shaders/flat.frag.glsl",
-                             {"u_viewMatrix", "u_projectionMatrix"})
-        || !_programLambert.create(":/shaders/lambert.vert.glsl",
-                                   ":/shaders/lambert.frag.glsl",
-                                   {"u_viewMatrix", "u_projectionMatrix"})) {
-        qFatal("Failed to create one or more shader programs");
+    if (!_program
+             .create(":/shaders/lambert.vert.glsl",
+                     ":/shaders/lambert.frag.glsl",
+                     {"u_viewMatrix", "u_projectionMatrix", "u_colorTexture", "u_normalTexture"})) {
+        qFatal() << "Failed to create one or more shader programs";
     }
+
+    _colorTexture = loadTexture(":/textures/minecraft_textures_all.png");
+    _normalTexture = loadTexture(":/textures/minecraft_normals_all.png");
 }
 
 auto minecraft::GLWidget::resizeGL(const int width, const int height) -> void
@@ -66,9 +70,21 @@ auto minecraft::GLWidget::paintGL() -> void
         viewMatrix = camera.pose().viewMatrix();
         projectionMatrix = camera.projectionMatrix();
     }
-    _programLambert.setUniform("u_viewMatrix", viewMatrix);
-    _programLambert.setUniform("u_projectionMatrix", projectionMatrix);
-    _programLambert.useProgram();
+    _program.useProgram();
+
+    glActiveTexture(GL_TEXTURE0);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _colorTexture);
+    debugGLError();
+    glActiveTexture(GL_TEXTURE1);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _normalTexture);
+    debugGLError();
+
+    _program.setUniform("u_viewMatrix", viewMatrix);
+    _program.setUniform("u_projectionMatrix", projectionMatrix);
+    _program.setUniform("u_colorTexture", 0);
+    _program.setUniform("u_normalTexture", 1);
 
     {
         std::lock_guard lock{_scene.terrainMutex()};
@@ -110,4 +126,42 @@ auto minecraft::GLWidget::tick() -> void
         }
     }
     update();
+}
+
+auto minecraft::GLWidget::loadTexture(const QString &fileName) -> GLuint
+{
+    const QImage originalImage{fileName};
+    if (originalImage.isNull()) {
+        qFatal() << "Failed to load texture image" << fileName;
+    }
+    const auto convertedImage{originalImage.convertToFormat(QImage::Format_RGBA8888)};
+    GLuint textureId{0u};
+    glGenTextures(1, &textureId);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, textureId);
+    debugGLError();
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGBA,
+                 convertedImage.width(),
+                 convertedImage.height(),
+                 0,
+                 GL_RGBA,
+                 GL_UNSIGNED_BYTE,
+                 convertedImage.constBits());
+    debugGLError();
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    debugGLError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    debugGLError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    debugGLError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    debugGLError();
+
+    glGenerateMipmap(GL_TEXTURE_2D);
+    debugGLError();
+
+    return textureId;
 }

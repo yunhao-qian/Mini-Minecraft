@@ -1,8 +1,8 @@
 <RCC>
     <qresource prefix="/">
-        <file>shaders/flat.frag.glsl</file>
-        <file>shaders/flat.vert.glsl</file>
         <file>shaders/lambert.frag.glsl</file>
         <file>shaders/lambert.vert.glsl</file>
+        <file>textures/minecraft_normals_all.png</file>
+        <file>textures/minecraft_textures_all.png</file>
     </qresource>
 </RCC>

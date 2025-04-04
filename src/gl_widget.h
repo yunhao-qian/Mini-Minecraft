@@ -9,6 +9,7 @@
 #include "terrain_streamer.h"
 
 #include <QOpenGLWidget>
+#include <QString>
 #include <QTimer>
 
 namespace minecraft {
@@ -36,14 +37,17 @@ private slots:
     auto tick() -> void;
 
 private:
+    auto loadTexture(const QString &fileName) -> GLuint;
+
     QTimer _timer;
     qint64 _lastTickMilliseconds;
 
     Scene _scene;
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
-    ShaderProgram _programFlat;
-    ShaderProgram _programLambert;
+    ShaderProgram _program;
+    GLuint _colorTexture;
+    GLuint _normalTexture;
 };
 
 } // namespace minecraft

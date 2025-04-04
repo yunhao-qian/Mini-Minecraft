@@ -91,17 +91,24 @@ auto minecraft::ShaderProgram::useProgram() const -> void
     _context->debugGLError();
 }
 
+auto minecraft::ShaderProgram::setUniform(const QString &name, const GLint value) const -> void
+{
+    useProgram();
+    const auto location{findUniformLocation(name)};
+    if (!location.has_value()) {
+        return;
+    }
+    _context->glUniform1ui(*location, value);
+}
+
 auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void
 {
     useProgram();
-    const auto it{std::ranges::find_if(_uniformLocations,
-                                       [&name](const auto &pair) { return pair.first == name; })};
-    if (it == _uniformLocations.end()) {
-        qWarning() << "Uniform" << name << "not found in shader program";
+    const auto location{findUniformLocation(name)};
+    if (!location.has_value()) {
         return;
     }
-    const auto location{it->second};
-    _context->glUniformMatrix4fv(location, 1, GL_FALSE, &value[0][0]);
+    _context->glUniformMatrix4fv(*location, 1, GL_FALSE, &value[0][0]);
     _context->debugGLError();
 }
 
@@ -132,4 +139,16 @@ auto minecraft::ShaderProgram::compileShader(const GLuint shader, const QString 
         }
     }
     return true;
+}
+
+auto minecraft::ShaderProgram::findUniformLocation(const QString &name) const
+    -> std::optional<GLuint>
+{
+    const auto it{std::ranges::find_if(_uniformLocations,
+                                       [&name](const auto &pair) { return pair.first == name; })};
+    if (it == _uniformLocations.end()) {
+        qWarning() << "Uniform" << name << "not found in shader program";
+        return std::nullopt;
+    }
+    return it->second;
 }

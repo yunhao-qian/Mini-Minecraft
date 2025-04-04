@@ -1,9 +1,13 @@
 #version 330
 
+uniform sampler2D u_colorTexture;
+uniform sampler2D u_normalTexture;
+
 in vec3 v_worldPosition;
 in vec3 v_viewPosition;
+in vec2 v_textureCoords;
 in vec3 v_normal;
-in vec3 v_color;
+in vec3 v_tangent;
 
 out vec4 f_color;
 
@@ -12,21 +16,29 @@ const vec3 backgroundColor = vec3(0.37, 0.74, 1.0);
 
 void main()
 {
-    float diffuseTerm = max(dot(normalize(v_normal), lightDirection), 0.0);
+    vec4 textureColor = texture(u_colorTexture, v_textureCoords);
+    vec4 textureNormal = texture(u_normalTexture, v_textureCoords);
 
-    bool xBound = fract(v_worldPosition.x) < 0.0125 || fract(v_worldPosition.x) > 0.9875;
-    bool yBound = fract(v_worldPosition.y) < 0.0125 || fract(v_worldPosition.y) > 0.9875;
-    bool zBound = fract(v_worldPosition.z) < 0.0125 || fract(v_worldPosition.z) > 0.9875;
-    if ((xBound && yBound) || (xBound && zBound) || (yBound && zBound)) {
-        diffuseTerm = 0.0;
+    vec3 faceNormal = normalize(v_normal);
+    vec3 fragmentNormal;
+    if (textureNormal.a < 0.5) {
+        fragmentNormal = faceNormal;
+    } else {
+        vec3 faceTangent = normalize(v_tangent);
+        vec3 faceBitangent = normalize(cross(faceNormal, faceTangent));
+        mat3 tbnMatrix = mat3(faceTangent, faceBitangent, faceNormal);
+        vec3 tangentSpaceNormal = textureNormal.xyz * 2.0 - 1.0;
+        fragmentNormal = normalize(tbnMatrix * tangentSpaceNormal);
     }
 
+    float diffuseTerm = max(dot(normalize(fragmentNormal), lightDirection), 0.0);
     float ambientTerm = 0.2;
     float lightIntensity = diffuseTerm + ambientTerm;
 
     float distanceToCamera = length(v_viewPosition);
     float opacity = exp(distanceToCamera * -0.001);
     opacity -= smoothstep(192.0, 256.0, distanceToCamera) * exp(256 * -0.001);
+    opacity = clamp(opacity, 0.0, 1.0);
 
-    f_color = vec4(mix(backgroundColor, v_color * lightIntensity, opacity), 1.0);
+    f_color = vec4(mix(backgroundColor, textureColor.rgb * lightIntensity, opacity), 1.0);
 }

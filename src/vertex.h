@@ -11,7 +11,6 @@
 namespace minecraft {
 
 enum class VertexType {
-    Flat,
     Lambert,
 };
 
@@ -27,28 +26,12 @@ struct VertexAttribute
 template<typename Vertex>
 struct VertexTraits;
 
-struct FlatVertex
-{
-    glm::vec3 position;
-    glm::vec3 color;
-};
-
-template<>
-struct VertexTraits<FlatVertex>
-{
-    static constexpr auto Type{VertexType::Flat};
-    static constexpr auto Stride{sizeof(FlatVertex)};
-    static constexpr auto Attributes{std::to_array<VertexAttribute>({
-        {0u, 3, GL_FLOAT, GL_FALSE, offsetof(FlatVertex, position)},
-        {1u, 3, GL_FLOAT, GL_FALSE, offsetof(FlatVertex, color)},
-    })};
-};
-
 struct LambertVertex
 {
     glm::vec3 position;
+    glm::vec2 textureCoords;
     glm::vec3 normal;
-    glm::vec3 color;
+    glm::vec3 tangent;
 };
 
 template<>
@@ -58,8 +41,9 @@ struct VertexTraits<LambertVertex>
     static constexpr auto Stride{sizeof(LambertVertex)};
     static constexpr auto Attributes{std::to_array<VertexAttribute>({
         {0u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, position)},
-        {1u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, normal)},
-        {2u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, color)},
+        {1u, 2, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, textureCoords)},
+        {2u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, normal)},
+        {3u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, tangent)},
     })};
 };
 

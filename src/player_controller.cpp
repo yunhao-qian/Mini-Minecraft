@@ -103,7 +103,7 @@ auto minecraft::PlayerController::rayMarch(const Terrain &terrain,
     do {
         if (terrain.getBlockGlobal(blockPosition.x, blockPosition.y, blockPosition.z)
             != BlockType::Empty) {
-            return {blockPosition};
+            return blockPosition;
         }
 
         const auto position{origin + direction * distance};

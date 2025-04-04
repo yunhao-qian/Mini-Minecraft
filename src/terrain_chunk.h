@@ -10,10 +10,8 @@
 #include <glm/glm.hpp>
 
 #include <array>
-#include <cstdint>
 #include <memory>
 #include <ranges>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -53,23 +51,31 @@ public:
     auto draw() -> void override;
 
 private:
-    static constexpr std::array<std::array<std::array<std::int8_t, 3>, 4>, 6> CubeVertices{{
-        {{{1, 0, 0}, {1, 1, 0}, {1, 1, 1}, {1, 0, 1}}},
-        {{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}}},
+    static constexpr std::array<std::array<glm::ivec3, 4>, 6> VertexPositions{{
+        {{{1, 1, 1}, {1, 0, 1}, {1, 0, 0}, {1, 1, 0}}},
+        {{{0, 1, 0}, {0, 0, 0}, {0, 0, 1}, {0, 1, 1}}},
         {{{0, 1, 0}, {0, 1, 1}, {1, 1, 1}, {1, 1, 0}}},
-        {{{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}}},
-        {{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}},
-        {{{0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}}},
+        {{{1, 0, 0}, {1, 0, 1}, {0, 0, 1}, {0, 0, 0}}},
+        {{{0, 1, 1}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}}},
+        {{{1, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}}},
     }};
 
-    static constexpr std::array<std::array<std::int8_t, 3>, 6> CubeNormals{{
-        {1, 0, 0},
-        {-1, 0, 0},
-        {0, 1, 0},
-        {0, -1, 0},
-        {0, 0, 1},
-        {0, 0, -1},
-    }};
+    static constexpr std::array<glm::ivec3, 6> FaceNormals{
+        {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
+    static constexpr std::array<glm::ivec3, 6> FaceTangents{
+        {{0, -1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, 1}, {0, -1, 0}, {0, -1, 0}}};
+
+    static constexpr std::array<glm::ivec2, 4> GrassTopTextureCoords{
+        {{8, 2}, {8, 3}, {9, 3}, {9, 2}}};
+    static constexpr std::array<glm::ivec2, 4> GrassSideTextureCoords{
+        {{3, 0}, {3, 1}, {4, 1}, {4, 0}}};
+    static constexpr std::array<glm::ivec2, 4> DirtTextureCoords{{{2, 0}, {2, 1}, {3, 1}, {3, 0}}};
+    static constexpr std::array<glm::ivec2, 4> StoneTextureCoords{{{1, 0}, {1, 1}, {2, 1}, {2, 0}}};
+    static constexpr std::array<glm::ivec2, 4> WaterTextureCoords{
+        {{13, 12}, {13, 13}, {14, 13}, {14, 12}}};
+    static constexpr std::array<glm::ivec2, 4> SnowTextureCoords{{{2, 4}, {2, 5}, {3, 5}, {3, 4}}};
+    static constexpr std::array<glm::ivec2, 4> UnknownTextureCoords{
+        {{8, 11}, {8, 12}, {9, 12}, {9, 11}}};
 
     VertexArrayHelper<Vertex> _vertexArrayHelper;
 };
@@ -157,32 +163,11 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
                     continue;
                 }
 
-                const auto globalX{_chunk->minX() + localX};
-                const auto globalY{localY};
-                const auto globalZ{_chunk->minZ() + localZ};
+                const glm::ivec3 blockPosition{_chunk->minX() + localX,
+                                               localY,
+                                               _chunk->minZ() + localZ};
 
-                glm::vec3 color;
-                switch (block) {
-                case BlockType::Grass:
-                    color = {0.37f, 0.62f, 0.21f};
-                    break;
-                case BlockType::Dirt:
-                    color = {0.47f, 0.33f, 0.23f};
-                    break;
-                case BlockType::Stone:
-                    color = {0.50f, 0.50f, 0.50f};
-                    break;
-                case BlockType::Water:
-                    color = {0.00f, 0.00f, 0.75f};
-                    break;
-                case BlockType::Snow:
-                    color = {1.00f, 1.00f, 1.00f};
-                    break;
-                default:
-                    color = {1.00f, 0.00f, 1.00f};
-                }
-
-                for (const auto &[direction, i] : {
+                for (const auto &[direction, faceIndex] : {
                          std::pair{Direction::PositiveX, 0},
                          std::pair{Direction::NegativeX, 1},
                          std::pair{Direction::PositiveY, 2},
@@ -200,22 +185,47 @@ auto minecraft::TerrainChunkDrawDelegate<Vertex>::prepareDraw() -> void
                             indices.push_back(indexOffset + index);
                         }
                     }
-                    const auto normal{CubeNormals[i]};
-                    for (const auto &position : CubeVertices[i]) {
-                        Vertex vertex{
-                            .position{static_cast<float>(globalX + position[0]),
-                                      static_cast<float>(globalY + position[1]),
-                                      static_cast<float>(globalZ + position[2])},
-                            .color{color},
-                        };
-                        if constexpr (std::is_same_v<Vertex, LambertVertex>) {
-                            vertex.normal = {
-                                static_cast<float>(normal[0]),
-                                static_cast<float>(normal[1]),
-                                static_cast<float>(normal[2]),
-                            };
+
+                    const auto &vertexPositions{VertexPositions[faceIndex]};
+
+                    const std::array<glm::ivec2, 4> *textureCoords{nullptr};
+                    switch (block) {
+                    case BlockType::Grass:
+                        if (direction == Direction::PositiveY) {
+                            textureCoords = &GrassTopTextureCoords;
+                        } else if (direction == Direction::NegativeY) {
+                            textureCoords = &DirtTextureCoords;
+                        } else {
+                            textureCoords = &GrassSideTextureCoords;
                         }
-                        vertices.push_back(vertex);
+                        break;
+                    case BlockType::Dirt:
+                        textureCoords = &DirtTextureCoords;
+                        break;
+                    case BlockType::Stone:
+                        textureCoords = &StoneTextureCoords;
+                        break;
+                    case BlockType::Water:
+                        textureCoords = &WaterTextureCoords;
+                        break;
+                    case BlockType::Snow:
+                        textureCoords = &SnowTextureCoords;
+                        break;
+                    default:
+                        textureCoords = &UnknownTextureCoords;
+                        break;
+                    }
+
+                    const auto normal{FaceNormals[faceIndex]};
+                    const auto tangent{FaceTangents[faceIndex]};
+
+                    for (const auto vertexIndex : std::views::iota(0, 4)) {
+                        vertices.push_back({
+                            .position{blockPosition + vertexPositions[vertexIndex]},
+                            .textureCoords{glm::vec2{(*textureCoords)[vertexIndex]} / 16.0f},
+                            .normal{normal},
+                            .tangent{tangent},
+                        });
                     }
                 }
             }
