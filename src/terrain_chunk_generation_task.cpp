@@ -52,7 +52,7 @@ auto getGrasslandHeight(const glm::vec2 position) -> float
     const auto noise{std::lerp(glm::perlin(scaledPerturbedPosition) * 0.5f + 0.5f,
                                worleyNoise(scaledPerturbedPosition),
                                1.0f / 3.0f)};
-    return noise * 36.0f + 132.0f;
+    return noise * 36.0f + 128.0f;
 }
 
 auto getMountainHeight(const glm::vec2 position) -> float

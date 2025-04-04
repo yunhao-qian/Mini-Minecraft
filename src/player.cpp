@@ -68,8 +68,15 @@ auto minecraft::Player::updatePhysics(const float dT, const Terrain &terrain) ->
             glm::slerp(_pose.orientation(), _desiredOrientation, interpolation)};
         _pose.setOrientation(interpolatedOrientation);
     }
+    const auto inWater{isInWater(terrain)};
     {
-        auto decayedVelocity{_velocity * std::exp(-0.1f * dT)};
+        float decayFactor;
+        if (_movementMode == MovementMode::Fly || !inWater) {
+            decayFactor = 0.1f;
+        } else {
+            decayFactor = 2.0f;
+        }
+        auto decayedVelocity{_velocity * std::exp(-decayFactor * dT)};
         if (_movementMode == MovementMode::Walk) {
             const auto decay{std::exp(-1.0f * dT)};
             decayedVelocity.x *= decay;
@@ -78,7 +85,7 @@ auto minecraft::Player::updatePhysics(const float dT, const Terrain &terrain) ->
         _acceleration += (decayedVelocity - _velocity) / dT;
     }
     if (_movementMode != MovementMode::Fly && _movementMode != MovementMode::Walk) {
-        _acceleration.y += -9.81f;
+        _acceleration.y -= 9.81f * (inWater ? 0.2f : 1.0f);
     }
     _velocity += _acceleration * dT;
     if (_movementMode == MovementMode::Walk) {
@@ -140,7 +147,8 @@ auto minecraft::Player::simulateWithTerrainCollisions(const float dT, const Terr
         for (const auto x : std::views::iota(intMinP.x, intMaxP.x)) {
             for (const auto y : std::views::iota(intMinP.y, intMaxP.y)) {
                 for (const auto z : std::views::iota(intMinP.z, intMaxP.z)) {
-                    if (terrain.getBlockGlobal(x, y, z) == BlockType::Empty) {
+                    if (const auto block{terrain.getBlockGlobal(x, y, z)};
+                        block == BlockType::Empty || isLiquidBlock(block)) {
                         continue;
                     }
                     const glm::vec3 blockMinP{glm::ivec3{x, y, z}};
@@ -173,6 +181,16 @@ auto minecraft::Player::simulateWithTerrainCollisions(const float dT, const Terr
     if (_movementMode != MovementMode::Walk && isCloseToGround(terrain)) {
         _movementMode = MovementMode::Walk;
     }
+    if (_movementMode == MovementMode::Fall && isInWater(terrain)) {
+        _movementMode = MovementMode::Swim;
+    }
+}
+
+auto minecraft::Player::isInWater(const Terrain &terrain) const -> bool
+{
+    const glm::ivec3 blockPosition{glm::floor(_pose.position())};
+    return terrain.getBlockGlobal(blockPosition.x, blockPosition.y, blockPosition.z)
+           == BlockType::Water;
 }
 
 auto minecraft::Player::isCloseToGround(const Terrain &terrain) const -> bool
@@ -189,7 +207,8 @@ auto minecraft::Player::isCloseToGround(const Terrain &terrain) const -> bool
     const auto groundY{static_cast<int>(roundedY) - 1};
     for (const auto x : std::views::iota(minP[0], maxP[0])) {
         for (const auto z : std::views::iota(minP[1], maxP[1])) {
-            if (terrain.getBlockGlobal(x, groundY, z) != BlockType::Empty) {
+            if (const auto block{terrain.getBlockGlobal(x, groundY, z)};
+                block != BlockType::Empty && !isLiquidBlock(block)) {
                 return true;
             }
         }

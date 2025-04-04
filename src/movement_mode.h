@@ -7,6 +7,7 @@ enum class MovementMode {
     Fly,
     Fall,
     Walk,
+    Swim,
 };
 
 } // namespace minecraft

@@ -19,12 +19,21 @@ auto minecraft::PlayerController::keyPressEvent(const QKeyEvent *const event) ->
     desiredPose.setOrientation(_player->desiredOrientation());
 
     switch (event->key()) {
-    case Qt::Key_Space:
-        if (_player->movementMode() == MovementMode::Walk) {
-            _player->setVelocity(_player->velocity()
-                                 + glm::vec3{0.0f, shiftPressed ? 12.0f : 6.0f, 0.0f});
+    case Qt::Key_Space: {
+        auto velocity{_player->velocity()};
+        switch (_player->movementMode()) {
+        case MovementMode::Walk:
+            velocity.y += shiftPressed ? 12.0f : 6.0f;
+            break;
+        case MovementMode::Swim:
+            velocity.y += shiftPressed ? 4.0f : 2.0f;
+            break;
+        default:
+            return;
         }
+        _player->setVelocity(velocity);
         return;
+    }
     case Qt::Key_F:
         // Toggle the flight mode.
         if (_player->movementMode() == MovementMode::Fly) {

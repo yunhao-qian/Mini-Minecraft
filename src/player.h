@@ -36,6 +36,7 @@ private:
 
     auto simulateWithTerrainCollisions(const float dT, const Terrain &terrain) -> void;
 
+    auto isInWater(const Terrain &terrain) const -> bool;
     auto isCloseToGround(const Terrain &terrain) const -> bool;
 
     Camera _camera;

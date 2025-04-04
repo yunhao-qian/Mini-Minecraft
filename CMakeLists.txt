@@ -29,6 +29,7 @@ FetchContent_MakeAvailable(glm)
 set(PROJECT_SOURCES
     src/main.cpp
     src/block_type.h
+    src/block_type.cpp
     src/camera.h
     src/camera.cpp
     src/camera_controls_window.h

@@ -34,13 +34,6 @@ constexpr std::array<glm::ivec2, 4> WaterTextureCoords{{{13, 3}, {14, 3}, {14, 4
 constexpr std::array<glm::ivec2, 4> SnowTextureCoords{{{2, 11}, {3, 11}, {3, 12}, {2, 12}}};
 constexpr std::array<glm::ivec2, 4> UnknownTextureCoords{{{8, 5}, {9, 5}, {9, 6}, {8, 6}}};
 
-auto isLiquidBlock(const minecraft::BlockType block) -> bool
-{
-    using minecraft::BlockType;
-
-    return block == BlockType::Water;
-}
-
 } // namespace
 
 minecraft::TerrainChunkDrawDelegate::TerrainChunkDrawDelegate(GLContext *const context,

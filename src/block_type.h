@@ -14,6 +14,8 @@ enum class BlockType : std::uint8_t {
     Snow,
 };
 
+auto isLiquidBlock(const BlockType block) -> bool;
+
 } // namespace minecraft
 
 #endif // MINI_MINECRAFT_BLOCK_TYPE_H
