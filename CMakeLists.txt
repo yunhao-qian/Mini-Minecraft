@@ -81,6 +81,11 @@ qt_add_executable(mini-minecraft
     resources.qrc
 )
 
+option(MINECRAFT_NO_DEBUG_GL_ERROR "Disable GLContext::debugGLError()" OFF)
+if (MINECRAFT_NO_DEBUG_GL_ERROR)
+    target_compile_definitions(mini-minecraft PRIVATE MINECRAFT_NO_DEBUG_GL_ERROR)
+endif()
+
 target_link_libraries(mini-minecraft
     PRIVATE glm::glm Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Widgets
 )

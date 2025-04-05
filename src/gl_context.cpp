@@ -4,6 +4,14 @@
 
 #include <vector>
 
+#ifdef MINECRAFT_NO_DEBUG_GL_ERROR
+
+auto minecraft::GLContext::debugGLError([[maybe_unused]] const std::source_location location)
+    -> void
+{}
+
+#else
+
 auto minecraft::GLContext::debugGLError(const std::source_location location) -> void
 {
     const auto error{glGetError()};
@@ -34,6 +42,8 @@ auto minecraft::GLContext::debugGLError(const std::source_location location) -> 
     qDebug().noquote().nospace() << "OpenGL error at " << location.file_name() << ":"
                                  << location.line() << ": " << errorString;
 }
+
+#endif // MINECRAFT_NO_DEBUG_GL_ERROR
 
 auto minecraft::GLContext::debugShaderInfoLog(const GLuint shader) -> void
 {
