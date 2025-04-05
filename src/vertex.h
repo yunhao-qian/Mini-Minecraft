@@ -29,11 +29,12 @@ struct VertexTraits;
 struct LambertVertex
 {
     glm::vec3 position;
+    GLubyte textureIndex;
     glm::vec2 textureCoords;
     glm::vec3 normal;
     glm::vec3 tangent;
-    GLbyte isWater;
-    GLbyte isLava;
+    GLubyte isWater;
+    GLubyte isLava;
 };
 
 template<>
@@ -43,11 +44,12 @@ struct VertexTraits<LambertVertex>
     static constexpr auto Stride{sizeof(LambertVertex)};
     static constexpr auto Attributes{std::to_array<VertexAttribute>({
         {0u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, position)},
-        {1u, 2, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, textureCoords)},
-        {2u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, normal)},
-        {3u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, tangent)},
-        {4u, 1, GL_BYTE, GL_FALSE, offsetof(LambertVertex, isWater)},
-        {5u, 1, GL_BYTE, GL_FALSE, offsetof(LambertVertex, isLava)},
+        {1u, 1, GL_UNSIGNED_BYTE, GL_FALSE, offsetof(LambertVertex, textureIndex)},
+        {2u, 2, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, textureCoords)},
+        {3u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, normal)},
+        {4u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, tangent)},
+        {5u, 1, GL_UNSIGNED_BYTE, GL_FALSE, offsetof(LambertVertex, isWater)},
+        {6u, 1, GL_UNSIGNED_BYTE, GL_FALSE, offsetof(LambertVertex, isLava)},
     })};
 };
 

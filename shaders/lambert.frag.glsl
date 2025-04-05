@@ -1,8 +1,9 @@
 #version 330
 
-uniform sampler2D u_colorTexture;
-uniform sampler2D u_normalTexture;
+uniform sampler2DArray u_colorTextureArray;
+uniform sampler2DArray u_normalTextureArray;
 
+flat in int v_textureIndex;
 in vec2 v_textureCoords;
 in vec3 v_normal;
 in vec3 v_tangent;
@@ -14,8 +15,8 @@ const vec3 lightDirection = normalize(vec3(0.5, 1.0, 0.75));
 
 void main()
 {
-    vec4 textureColor = texture(u_colorTexture, v_textureCoords);
-    vec4 textureNormal = texture(u_normalTexture, v_textureCoords);
+    vec4 textureColor = texture(u_colorTextureArray, vec3(v_textureCoords, float(v_textureIndex)));
+    vec4 textureNormal = texture(u_normalTextureArray, vec3(v_textureCoords, float(v_textureIndex)));
 
     vec3 faceNormal = normalize(v_normal);
     vec3 fragmentNormal;

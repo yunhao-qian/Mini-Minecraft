@@ -5,12 +5,14 @@ uniform mat4 u_projectionMatrix;
 uniform float u_time;
 
 layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec2 a_textureCoords;
-layout(location = 2) in vec3 a_normal;
-layout(location = 3) in vec3 a_tangent;
-layout(location = 4) in int a_isWater;
-layout(location = 5) in int a_isLava;
+layout(location = 1) in int a_textureIndex;
+layout(location = 2) in vec2 a_textureCoords;
+layout(location = 3) in vec3 a_normal;
+layout(location = 4) in vec3 a_tangent;
+layout(location = 5) in int a_isWater;
+layout(location = 6) in int a_isLava;
 
+flat out int v_textureIndex;
 out vec2 v_textureCoords;
 out vec3 v_normal;
 out vec3 v_tangent;
@@ -21,11 +23,12 @@ vec2 randomOffset(float frequency)
     float discreteTime = floor(u_time * frequency) / frequency;
     vec2 offset = fract(sin(vec2(discreteTime * 127.1, discreteTime * 269.5)) * 43758.5453);
     vec2 discreteOffset = floor(offset * 16.0) / 16.0;
-    return discreteOffset / 16.0;
+    return discreteOffset;
 }
 
 void main()
 {
+    v_textureIndex = a_textureIndex;
     v_textureCoords = a_textureCoords;
     if (a_isWater != 0) {
         v_textureCoords += randomOffset(8.0);

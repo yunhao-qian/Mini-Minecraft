@@ -37,18 +37,18 @@ private slots:
     auto tick() -> void;
 
 private:
-    auto loadTexture(const QString &fileName) -> GLuint;
+    auto loadTextureArray(const QString &filename) -> GLuint;
 
     QTimer _timer;
-    qint64 _startTimeMilliseconds;
-    qint64 _lastTickMilliseconds;
+    qint64 _startingMSecs;
+    qint64 _lastTickMSecs;
 
     Scene _scene;
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
     ShaderProgram _program;
-    GLuint _colorTexture;
-    GLuint _normalTexture;
+    GLuint _colorTextureArray;
+    GLuint _normalTextureArray;
 };
 
 } // namespace minecraft

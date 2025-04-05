@@ -19,21 +19,11 @@ constexpr std::array<std::array<glm::ivec3, 4>, 6> VertexPositions{{
     {{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}},
     {{{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}}},
 }};
-
 constexpr std::array<glm::ivec3, 6> FaceNormals{
     {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
 constexpr std::array<glm::ivec3, 6> FaceTangents{
     {{0, 1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}}};
-
-constexpr std::array<glm::ivec2, 4> GrassTopTextureCoords{{{8, 13}, {9, 13}, {9, 14}, {8, 14}}};
-constexpr std::array<glm::ivec2, 4> GrassSideTextureCoords{{{3, 15}, {4, 15}, {4, 16}, {3, 16}}};
-
-constexpr std::array<glm::ivec2, 4> DirtTextureCoords{{{2, 15}, {3, 15}, {3, 16}, {2, 16}}};
-constexpr std::array<glm::ivec2, 4> StoneTextureCoords{{{1, 15}, {2, 15}, {2, 16}, {1, 16}}};
-constexpr std::array<glm::ivec2, 4> WaterTextureCoords{{{14, 2}, {15, 2}, {15, 3}, {14, 3}}};
-constexpr std::array<glm::ivec2, 4> SnowTextureCoords{{{2, 11}, {3, 11}, {3, 12}, {2, 12}}};
-constexpr std::array<glm::ivec2, 4> LavaTextureCoords{{{14, 0}, {15, 0}, {15, 1}, {14, 1}}};
-constexpr std::array<glm::ivec2, 4> UnknownTextureCoords{{{8, 5}, {9, 5}, {9, 6}, {8, 6}}};
+constexpr std::array<glm::ivec2, 4> TextureCoords{{{0, 0}, {1, 0}, {1, 1}, {0, 1}}};
 
 } // namespace
 
@@ -108,45 +98,48 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
 
                     const auto &vertexPositions{VertexPositions[faceIndex]};
 
-                    const std::array<glm::ivec2, 4> *textureCoords{nullptr};
+                    glm::ivec2 textureRowColumn;
                     switch (block) {
                     case BlockType::Grass:
                         if (direction == Direction::PositiveY) {
-                            textureCoords = &GrassTopTextureCoords;
+                            textureRowColumn = {2, 8};
                         } else if (direction == Direction::NegativeY) {
-                            textureCoords = &DirtTextureCoords;
+                            textureRowColumn = {0, 2};
                         } else {
-                            textureCoords = &GrassSideTextureCoords;
+                            textureRowColumn = {0, 3};
                         }
                         break;
                     case BlockType::Dirt:
-                        textureCoords = &DirtTextureCoords;
+                        textureRowColumn = {0, 2};
                         break;
                     case BlockType::Stone:
-                        textureCoords = &StoneTextureCoords;
+                        textureRowColumn = {0, 1};
                         break;
                     case BlockType::Water:
-                        textureCoords = &WaterTextureCoords;
+                        textureRowColumn = {12, 13};
                         break;
                     case BlockType::Snow:
-                        textureCoords = &SnowTextureCoords;
+                        textureRowColumn = {4, 2};
                         break;
                     case BlockType::Lava:
-                        textureCoords = &LavaTextureCoords;
+                        textureRowColumn = {14, 13};
                         break;
                     default:
-                        textureCoords = &UnknownTextureCoords;
+                        textureRowColumn = {10, 8};
                     }
+                    const auto textureIndex{
+                        static_cast<GLubyte>(textureRowColumn[0] * 16 + textureRowColumn[1])};
 
                     const auto normal{FaceNormals[faceIndex]};
                     const auto tangent{FaceTangents[faceIndex]};
-                    const auto isWater{static_cast<GLbyte>(block == BlockType::Water)};
-                    const auto isLava{static_cast<GLbyte>(block == BlockType::Lava)};
+                    const auto isWater{static_cast<GLubyte>(block == BlockType::Water)};
+                    const auto isLava{static_cast<GLubyte>(block == BlockType::Lava)};
 
                     for (const auto vertexIndex : std::views::iota(0, 4)) {
                         vertices->push_back({
                             .position{blockPosition + vertexPositions[vertexIndex]},
-                            .textureCoords{glm::vec2{(*textureCoords)[vertexIndex]} / 16.0f},
+                            .textureIndex = textureIndex,
+                            .textureCoords{TextureCoords[vertexIndex]},
                             .normal{normal},
                             .tangent{tangent},
                             .isWater = isWater,

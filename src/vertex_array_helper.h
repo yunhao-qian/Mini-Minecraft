@@ -138,7 +138,7 @@ template<typename Vertex>
 auto minecraft::VertexArrayHelper<Vertex>::enableVertexAttributes() const -> void
 {
     for (const auto &attribute : VertexTraits<Vertex>::Attributes) {
-        if (attribute.type == GL_BYTE) {
+        if (attribute.type == GL_UNSIGNED_BYTE) {
             _context->glVertexAttribIPointer(attribute.index,
                                              attribute.size,
                                              attribute.type,
