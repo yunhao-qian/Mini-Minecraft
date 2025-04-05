@@ -10,9 +10,9 @@
 
 namespace {
 
-constexpr auto VisibleDistance{256.0f};
-constexpr auto GenerateDistance{320.0f};
-constexpr auto ReleaseDistance{384.0f};
+constexpr auto VisibleDistance{512.0f};
+constexpr auto GenerateDistance{640.0f};
+constexpr auto ReleaseDistance{768.0f};
 
 auto getChunkDistance(const glm::vec3 &position, const int minX, const int minZ) -> float
 {

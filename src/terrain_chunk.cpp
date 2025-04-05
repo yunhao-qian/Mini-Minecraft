@@ -141,17 +141,17 @@ auto minecraft::TerrainChunk::prepareDraw() -> void
     _drawDelegate->prepareDraw();
 }
 
-auto minecraft::TerrainChunk::drawOpaqueBlocks() -> void
+auto minecraft::TerrainChunk::drawSolidBlocks() -> void
 {
     if (_visible && _drawDelegate != nullptr) {
-        _drawDelegate->drawOpaqueBlocks();
+        _drawDelegate->drawSolidBlocks();
     }
 }
 
-auto minecraft::TerrainChunk::drawNonOpaqueBlocks() -> void
+auto minecraft::TerrainChunk::drawLiquidBlocks() -> void
 {
     if (_visible && _drawDelegate != nullptr) {
-        _drawDelegate->drawNonOpaqueBlocks();
+        _drawDelegate->drawLiquidBlocks();
     }
 }
 

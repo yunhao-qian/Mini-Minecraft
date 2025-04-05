@@ -1,4 +1,4 @@
-#version 330
+#version 330 core
 
 uniform vec3 u_cameraPosition;
 uniform sampler2DArray u_colorTextureArray;
@@ -13,6 +13,9 @@ in vec2 v_textureCoords;
 in vec3 v_normal;
 in vec3 v_tangent;
 flat in int v_isWater;
+flat in int v_isLava;
+flat in int v_isAdjacentToWater;
+flat in int v_isAdjacentToLava;
 
 out vec4 f_color;
 
@@ -30,7 +33,7 @@ void main()
 {
     vec2 backgroundTextureCoords;
     float backgroundDepth;
-    if (v_isWater != 0) {
+    if (v_isWater != 0 || v_isLava != 0) {
         backgroundTextureCoords = gl_FragCoord.xy / u_viewportSize;
         backgroundDepth = texture(u_solidBlocksDepthTexture, backgroundTextureCoords).r;
         if (gl_FragCoord.z > backgroundDepth) {
@@ -60,24 +63,40 @@ void main()
 
     f_color = vec4(textureColor.rgb * lightIntensity, 1.0);
 
+    // Use the spare alpha channel to encode media types.
+    const float airMedia = 0.2;
+    const float waterMedia = 0.4;
+    const float lavaMedia = 0.6;
+
+    bool isFrontFace = dot(faceNormal, normalize(u_cameraPosition - v_position)) > 0.0;
+
     if (v_isWater != 0) {
-        float dotProduct = dot(faceNormal, normalize(u_cameraPosition - v_position));
-        float waterLinearDepth = linearizeDepth(gl_FragCoord.z);
-        float attenuationDistance;
-        if (dotProduct > 0.0) {
-            // Above water
-            attenuationDistance = linearizeDepth(backgroundDepth) - waterLinearDepth;
-        } else if (dotProduct < 0.0) {
-            // Below water
-            attenuationDistance = waterLinearDepth;
-        } else {
-            attenuationDistance = 0.0;
-        }
-        float attenuationFactor = clamp(exp(attenuationDistance * -0.1), 0.0, 1.0);
-
         vec3 backgroundColor = texture(u_solidBlocksColorTexture, backgroundTextureCoords).rgb;
-        backgroundColor = mix(vec3(0.0, 0.4, 0.7), backgroundColor, attenuationFactor);
-
+        float attenuationDistance = linearizeDepth(backgroundDepth)
+                                    - linearizeDepth(gl_FragCoord.z);
+        vec3 attenuationFactor;
+        vec3 attenuationColor;
+        if (isFrontFace) {
+            attenuationFactor = vec3(0.12, 0.08, 0.04);
+            attenuationColor = vec3(0.2, 0.4, 0.6);
+        } else {
+            attenuationFactor = vec3(0.002, 0.002, 0.002);
+            vec3(0.37, 0.74, 1.0);
+        }
+        vec3 attenuation = clamp(exp(-attenuationDistance * attenuationFactor), 0.0, 1.0);
+        backgroundColor = mix(attenuationColor,
+                              backgroundColor,
+                              attenuation); // Mix with the background color based on attenuation.
         f_color.rgb = mix(f_color.rgb, backgroundColor, 0.8);
+
+        f_color.a = isFrontFace ? airMedia : waterMedia;
+    } else if (v_isLava != 0) {
+        f_color.a = isFrontFace ? airMedia : lavaMedia;
+    } else if (v_isAdjacentToWater != 0) {
+        f_color.a = isFrontFace ? waterMedia : airMedia;
+    } else if (v_isAdjacentToLava != 0) {
+        f_color.a = isFrontFace ? lavaMedia : airMedia;
+    } else {
+        f_color.a = airMedia;
     }
 }

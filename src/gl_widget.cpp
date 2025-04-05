@@ -1,12 +1,10 @@
 #include "gl_widget.h"
 
-#include <OpenGL/gltypes.h>
 #include <glm/glm.hpp>
 
 #include <QDateTime>
 #include <QImage>
 #include <QString>
-#include <QtGui/qopengl.h>
 
 #include <cmath>
 #include <mutex>
@@ -20,9 +18,11 @@ minecraft::GLWidget::GLWidget(QWidget *const parent)
     , _scene{}
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
-    , _program{this}
+    , _lambertProgram{this}
+    , _postProcessingProgram{this}
     , _solidBlocksFramebuffer{this}
     , _liquidBlocksFramebuffer{this}
+    , _postProcessingHelper{nullptr}
     , _colorTextureArray{0u}
     , _normalTextureArray{0u}
 {
@@ -41,27 +41,70 @@ auto minecraft::GLWidget::initializeGL() -> void
     debugGLError();
     glClearColor(0.37f, 0.74f, 1.0f, 1.0f);
     debugGLError();
-    glEnable(GL_BLEND);
-    debugGLError();
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_BLEND);
     debugGLError();
 
-    if (!_program.create(":/shaders/lambert.vert.glsl",
-                         ":/shaders/lambert.frag.glsl",
-                         {"u_viewMatrix",
-                          "u_projectionMatrix",
-                          "u_time",
-                          "u_cameraPosition",
-                          "u_colorTextureArray",
-                          "u_normalTextureArray",
-                          "u_viewportSize",
-                          "u_solidBlocksColorTexture",
-                          "u_solidBlocksDepthTexture"})) {
+    if (!_lambertProgram.create(":/shaders/lambert.vert.glsl",
+                                ":/shaders/lambert.frag.glsl",
+                                {"u_viewMatrix",
+                                 "u_projectionMatrix",
+                                 "u_time",
+                                 "u_cameraPosition",
+                                 "u_colorTextureArray",
+                                 "u_normalTextureArray",
+                                 "u_viewportSize",
+                                 "u_solidBlocksColorTexture",
+                                 "u_solidBlocksDepthTexture"})
+        || !_postProcessingProgram.create(":/shaders/post_processing.vert.glsl",
+                                          ":/shaders/post_processing.frag.glsl",
+                                          {"u_solidBlocksColorTexture",
+                                           "u_solidBlocksDepthTexture",
+                                           "u_liquidBlocksColorTexture",
+                                           "u_liquidBlocksDepthTexture"})) {
         qFatal() << "Failed to create one or more shader programs";
     }
 
+    _postProcessingHelper = std::make_unique<VertexArrayHelper<EmptyVertex>>(this);
+    _postProcessingHelper->setVertices({{}, {}, {}, {}, {}, {}}, GL_STATIC_DRAW);
+    _postProcessingHelper->setIndices({0u, 1u, 2u, 3u, 4u, 5u}, GL_STATIC_DRAW);
+
+    // TODO: Delete them on destruction.
     _colorTextureArray = loadTextureArray(":/textures/minecraft_textures_all.png");
     _normalTextureArray = loadTextureArray(":/textures/minecraft_normals_all.png");
+
+    glActiveTexture(GL_TEXTURE0);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _colorTextureArray);
+    debugGLError();
+    glActiveTexture(GL_TEXTURE1);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _normalTextureArray);
+    debugGLError();
+    glActiveTexture(GL_TEXTURE2);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.colorTexture());
+    debugGLError();
+    glActiveTexture(GL_TEXTURE3);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.depthTexture());
+    debugGLError();
+    glActiveTexture(GL_TEXTURE4);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.colorTexture());
+    debugGLError();
+    glActiveTexture(GL_TEXTURE5);
+    debugGLError();
+    glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.depthTexture());
+    debugGLError();
+
+    _lambertProgram.setUniform("u_colorTextureArray", 0);
+    _lambertProgram.setUniform("u_normalTextureArray", 1);
+    _lambertProgram.setUniform("u_solidBlocksColorTexture", 2);
+    _lambertProgram.setUniform("u_solidBlocksDepthTexture", 3);
+    _postProcessingProgram.setUniform("u_solidBlocksColorTexture", 2);
+    _postProcessingProgram.setUniform("u_solidBlocksDepthTexture", 3);
+    _postProcessingProgram.setUniform("u_liquidBlocksColorTexture", 4);
+    _postProcessingProgram.setUniform("u_liquidBlocksDepthTexture", 5);
 }
 
 auto minecraft::GLWidget::resizeGL(const int width, const int height) -> void
@@ -88,94 +131,75 @@ auto minecraft::GLWidget::paintGL() -> void
         viewMatrix = camera.pose().viewMatrix();
         projectionMatrix = camera.projectionMatrix();
     }
-    _program.useProgram();
 
-    glActiveTexture(GL_TEXTURE0);
-    debugGLError();
-    glBindTexture(GL_TEXTURE_2D_ARRAY, _colorTextureArray);
-    debugGLError();
-    glActiveTexture(GL_TEXTURE1);
-    debugGLError();
-    glBindTexture(GL_TEXTURE_2D_ARRAY, _normalTextureArray);
-    debugGLError();
-    glActiveTexture(GL_TEXTURE2);
-    debugGLError();
-    // TODO: When drawing solid blocks, its color and depth buffers should not be bound to textures.
-    glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.colorTexture());
-    debugGLError();
-    glActiveTexture(GL_TEXTURE3);
-    debugGLError();
-    glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.depthTexture());
-    debugGLError();
+    _lambertProgram.useProgram();
+    _lambertProgram.setUniform("u_viewMatrix", viewMatrix);
+    _lambertProgram.setUniform("u_projectionMatrix", projectionMatrix);
+    _lambertProgram.setUniform("u_time",
+                               (QDateTime::currentMSecsSinceEpoch() - _startingMSecs) / 1000.0f);
+    _lambertProgram.setUniform("u_cameraPosition", cameraPosition);
+    _lambertProgram.setUniform("u_viewportSize",
+                               glm::vec2{glm::ivec2{_liquidBlocksFramebuffer.width(),
+                                                    _liquidBlocksFramebuffer.height()}});
 
-    _program.setUniform("u_viewMatrix", viewMatrix);
-    _program.setUniform("u_projectionMatrix", projectionMatrix);
-    _program.setUniform("u_time", (QDateTime::currentMSecsSinceEpoch() - _startingMSecs) / 1000.0f);
-    _program.setUniform("u_cameraPosition", cameraPosition);
-    _program.setUniform("u_colorTextureArray", 0);
-    _program.setUniform("u_normalTextureArray", 1);
-    _program.setUniform("u_viewportSize",
-                        glm::vec2{glm::ivec2{_liquidBlocksFramebuffer.width(),
-                                             _liquidBlocksFramebuffer.height()}});
-    _program.setUniform("u_solidBlocksColorTexture", 2);
-    _program.setUniform("u_solidBlocksDepthTexture", 3);
-
-    const auto defaultFBO{defaultFramebufferObject()};
     {
         std::lock_guard lock{_scene.terrainMutex()};
         _terrainStreamer.update(cameraPosition);
         _scene.terrain().prepareDraw();
 
-        glDisable(GL_BLEND);
+        glActiveTexture(GL_TEXTURE2);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.colorTexture());
+        debugGLError();
+        glActiveTexture(GL_TEXTURE3);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.depthTexture());
+        debugGLError();
+
         _solidBlocksFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugGLError();
-        _scene.terrain().drawOpaqueBlocks();
-        glEnable(GL_BLEND);
+        _scene.terrain().drawSolidBlocks();
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, _solidBlocksFramebuffer.fbo());
+        glActiveTexture(GL_TEXTURE2);
         debugGLError();
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _liquidBlocksFramebuffer.fbo());
+        glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.colorTexture());
         debugGLError();
-        glBlitFramebuffer(0,
-                          0,
-                          _solidBlocksFramebuffer.width(),
-                          _solidBlocksFramebuffer.height(),
-                          0,
-                          0,
-                          _solidBlocksFramebuffer.width(),
-                          _solidBlocksFramebuffer.height(),
-                          GL_COLOR_BUFFER_BIT,
-                          GL_NEAREST);
+        glActiveTexture(GL_TEXTURE3);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.depthTexture());
         debugGLError();
 
-        glDisable(GL_DEPTH_TEST);
+        glActiveTexture(GL_TEXTURE4);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.colorTexture());
+        debugGLError();
+        glActiveTexture(GL_TEXTURE5);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _solidBlocksFramebuffer.depthTexture());
+        debugGLError();
+
         _liquidBlocksFramebuffer.bind();
-        _scene.terrain().drawNonOpaqueBlocks();
-        glEnable(GL_DEPTH_TEST);
+        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+        debugGLError();
+        _scene.terrain().drawLiquidBlocks();
+
+        glActiveTexture(GL_TEXTURE4);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.colorTexture());
+        debugGLError();
+        glActiveTexture(GL_TEXTURE5);
+        debugGLError();
+        glBindTexture(GL_TEXTURE_2D, _liquidBlocksFramebuffer.depthTexture());
+        debugGLError();
     }
 
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, _liquidBlocksFramebuffer.fbo());
+    _postProcessingProgram.useProgram();
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     debugGLError();
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFBO);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     debugGLError();
-    glBlitFramebuffer(0,
-                      0,
-                      _liquidBlocksFramebuffer.width(),
-                      _liquidBlocksFramebuffer.height(),
-                      0,
-                      0,
-                      _liquidBlocksFramebuffer.width(),
-                      _liquidBlocksFramebuffer.height(),
-                      GL_COLOR_BUFFER_BIT,
-                      GL_NEAREST);
-    debugGLError();
-
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, defaultFBO);
-    debugGLError();
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFBO);
-    debugGLError();
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
+    _postProcessingHelper->drawElements(GL_TRIANGLES);
 }
 
 auto minecraft::GLWidget::keyPressEvent(QKeyEvent *const event) -> void

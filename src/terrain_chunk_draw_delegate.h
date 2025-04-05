@@ -18,14 +18,14 @@ public:
 
     auto prepareDraw() -> void;
 
-    auto drawOpaqueBlocks() const -> void;
-    auto drawNonOpaqueBlocks() const -> void;
+    auto drawSolidBlocks() const -> void;
+    auto drawLiquidBlocks() const -> void;
 
 private:
     const TerrainChunk *_chunk;
     bool _dirty;
-    VertexArrayHelper<LambertVertex> _opaqueBlocksHelper;
-    VertexArrayHelper<LambertVertex> _nonOpaqueBlocksHelper;
+    VertexArrayHelper<LambertVertex> _solidBlocksHelper;
+    VertexArrayHelper<LambertVertex> _liquidBlocksHelper;
 };
 
 } // namespace minecraft

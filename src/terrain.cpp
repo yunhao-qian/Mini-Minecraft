@@ -68,16 +68,16 @@ auto minecraft::Terrain::prepareDraw() -> void
     }
 }
 
-auto minecraft::Terrain::drawOpaqueBlocks() -> void
+auto minecraft::Terrain::drawSolidBlocks() -> void
 {
     for (const auto &[_, chunk] : _chunks) {
-        chunk->drawOpaqueBlocks();
+        chunk->drawSolidBlocks();
     }
 }
 
-auto minecraft::Terrain::drawNonOpaqueBlocks() -> void
+auto minecraft::Terrain::drawLiquidBlocks() -> void
 {
     for (const auto &[_, chunk] : _chunks) {
-        chunk->drawNonOpaqueBlocks();
+        chunk->drawLiquidBlocks();
     }
 }

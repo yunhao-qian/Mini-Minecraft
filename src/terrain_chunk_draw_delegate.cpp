@@ -31,8 +31,8 @@ minecraft::TerrainChunkDrawDelegate::TerrainChunkDrawDelegate(GLContext *const c
                                                               const TerrainChunk *const chunk)
     : _chunk{chunk}
     , _dirty{true}
-    , _opaqueBlocksHelper{context}
-    , _nonOpaqueBlocksHelper{context}
+    , _solidBlocksHelper{context}
+    , _liquidBlocksHelper{context}
 {}
 
 auto minecraft::TerrainChunkDrawDelegate::markDirty() -> void
@@ -46,10 +46,10 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
         return;
     }
 
-    std::vector<LambertVertex> opaqueVertices;
-    std::vector<GLuint> opaqueIndices;
-    std::vector<LambertVertex> nonOpaqueVertices;
-    std::vector<GLuint> nonOpaqueIndices;
+    std::vector<LambertVertex> solidVertices;
+    std::vector<GLuint> solidIndices;
+    std::vector<LambertVertex> liquidVertices;
+    std::vector<GLuint> liquidIndices;
 
     for (const auto localX : std::views::iota(0, TerrainChunk::SizeX)) {
         for (const auto localY : std::views::iota(0, TerrainChunk::SizeY)) {
@@ -76,18 +76,18 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
 
                     const auto neighborBlock{
                         _chunk->getNeighborBlockLocal(localX, localY, localZ, direction)};
-                    if (isOpaqueBlock(block)) {
-                        if (isOpaqueBlock(neighborBlock)) {
-                            continue;
-                        }
-                        vertices = &opaqueVertices;
-                        indices = &opaqueIndices;
-                    } else {
+                    if (isLiquidBlock(block)) {
                         if (neighborBlock != BlockType::Empty) {
                             continue;
                         }
-                        vertices = &nonOpaqueVertices;
-                        indices = &nonOpaqueIndices;
+                        vertices = &liquidVertices;
+                        indices = &liquidIndices;
+                    } else {
+                        if (neighborBlock != BlockType::Empty && !isLiquidBlock(neighborBlock)) {
+                            continue;
+                        }
+                        vertices = &solidVertices;
+                        indices = &solidIndices;
                     }
                     {
                         const auto indexOffset{static_cast<GLuint>(vertices->size())};
@@ -134,6 +134,10 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
                     const auto tangent{FaceTangents[faceIndex]};
                     const auto isWater{static_cast<GLubyte>(block == BlockType::Water)};
                     const auto isLava{static_cast<GLubyte>(block == BlockType::Lava)};
+                    const auto isAdjacentToWater{
+                        static_cast<GLubyte>(neighborBlock == BlockType::Water)};
+                    const auto isAdjacentToLava{
+                        static_cast<GLubyte>(neighborBlock == BlockType::Lava)};
 
                     for (const auto vertexIndex : std::views::iota(0, 4)) {
                         vertices->push_back({
@@ -144,6 +148,8 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
                             .tangent{tangent},
                             .isWater = isWater,
                             .isLava = isLava,
+                            .isAdjacentToWater = isAdjacentToWater,
+                            .isAdjacentToLava = isAdjacentToLava,
                         });
                     }
                 }
@@ -151,19 +157,19 @@ auto minecraft::TerrainChunkDrawDelegate::prepareDraw() -> void
         }
     }
 
-    _opaqueBlocksHelper.setVertices(opaqueVertices, GL_STATIC_DRAW);
-    _opaqueBlocksHelper.setIndices(opaqueIndices, GL_STATIC_DRAW);
-    _nonOpaqueBlocksHelper.setVertices(nonOpaqueVertices, GL_STATIC_DRAW);
-    _nonOpaqueBlocksHelper.setIndices(nonOpaqueIndices, GL_STATIC_DRAW);
+    _solidBlocksHelper.setVertices(solidVertices, GL_STATIC_DRAW);
+    _solidBlocksHelper.setIndices(solidIndices, GL_STATIC_DRAW);
+    _liquidBlocksHelper.setVertices(liquidVertices, GL_STATIC_DRAW);
+    _liquidBlocksHelper.setIndices(liquidIndices, GL_STATIC_DRAW);
     _dirty = false;
 }
 
-auto minecraft::TerrainChunkDrawDelegate::drawOpaqueBlocks() const -> void
+auto minecraft::TerrainChunkDrawDelegate::drawSolidBlocks() const -> void
 {
-    _opaqueBlocksHelper.drawElements(GL_TRIANGLES);
+    _solidBlocksHelper.drawElements(GL_TRIANGLES);
 }
 
-auto minecraft::TerrainChunkDrawDelegate::drawNonOpaqueBlocks() const -> void
+auto minecraft::TerrainChunkDrawDelegate::drawLiquidBlocks() const -> void
 {
-    _nonOpaqueBlocksHelper.drawElements(GL_TRIANGLES);
+    _liquidBlocksHelper.drawElements(GL_TRIANGLES);
 }

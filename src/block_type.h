@@ -15,8 +15,6 @@ enum class BlockType : std::uint8_t {
     Lava,
 };
 
-auto isOpaqueBlock(const BlockType block) -> bool;
-
 auto isLiquidBlock(const BlockType block) -> bool;
 
 } // namespace minecraft

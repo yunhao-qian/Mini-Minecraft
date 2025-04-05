@@ -8,10 +8,14 @@
 #include "scene.h"
 #include "shader_program.h"
 #include "terrain_streamer.h"
+#include "vertex.h"
+#include "vertex_array_helper.h"
 
 #include <QOpenGLWidget>
 #include <QString>
 #include <QTimer>
+
+#include <memory>
 
 namespace minecraft {
 
@@ -47,9 +51,11 @@ private:
     Scene _scene;
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
-    ShaderProgram _program;
+    ShaderProgram _lambertProgram;
+    ShaderProgram _postProcessingProgram;
     Framebuffer _solidBlocksFramebuffer;
     Framebuffer _liquidBlocksFramebuffer;
+    std::unique_ptr<VertexArrayHelper<EmptyVertex>> _postProcessingHelper;
     GLuint _colorTextureArray;
     GLuint _normalTextureArray;
 };
