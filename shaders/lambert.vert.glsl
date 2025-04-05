@@ -12,11 +12,12 @@ layout(location = 4) in vec3 a_tangent;
 layout(location = 5) in int a_isWater;
 layout(location = 6) in int a_isLava;
 
+out vec3 v_position;
 flat out int v_textureIndex;
 out vec2 v_textureCoords;
 out vec3 v_normal;
 out vec3 v_tangent;
-out float v_opacity;
+flat out int v_isWater;
 
 vec2 randomOffset(float frequency)
 {
@@ -28,18 +29,16 @@ vec2 randomOffset(float frequency)
 
 void main()
 {
+    v_position = a_position;
     v_textureIndex = a_textureIndex;
     v_textureCoords = a_textureCoords;
     if (a_isWater != 0) {
         v_textureCoords += randomOffset(8.0);
-        v_opacity = 0.5;
-    } else {
-        v_opacity = 1.0;
-        if (a_isLava != 0) {
-            v_textureCoords += randomOffset(4.0);
-        }
+    } else if (a_isLava != 0) {
+        v_textureCoords += randomOffset(4.0);
     }
     v_normal = a_normal;
     v_tangent = a_tangent;
     gl_Position = u_projectionMatrix * u_viewMatrix * vec4(a_position, 1.0);
+    v_isWater = a_isWater;
 }

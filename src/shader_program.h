@@ -27,6 +27,8 @@ public:
 
     auto setUniform(const QString &name, const GLint value) const -> void;
     auto setUniform(const QString &name, const GLfloat value) const -> void;
+    auto setUniform(const QString &name, const glm::vec2 &value) const -> void;
+    auto setUniform(const QString &name, const glm::vec3 &value) const -> void;
     auto setUniform(const QString &name, const glm::mat4 &value) const -> void;
 
 private:

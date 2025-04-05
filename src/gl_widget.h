@@ -1,6 +1,7 @@
 #ifndef MINI_MINECRAFT_GL_WIDGET_H
 #define MINI_MINECRAFT_GL_WIDGET_H
 
+#include "framebuffer.h"
 #include "gl_context.h"
 #include "player_controller.h"
 #include "player_info_display_data.h"
@@ -47,6 +48,8 @@ private:
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
     ShaderProgram _program;
+    Framebuffer _solidBlocksFramebuffer;
+    Framebuffer _liquidBlocksFramebuffer;
     GLuint _colorTextureArray;
     GLuint _normalTextureArray;
 };

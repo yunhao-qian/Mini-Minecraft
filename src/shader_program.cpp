@@ -113,6 +113,28 @@ auto minecraft::ShaderProgram::setUniform(const QString &name, const GLfloat val
     _context->debugGLError();
 }
 
+auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::vec2 &value) const -> void
+{
+    useProgram();
+    const auto location{findUniformLocation(name)};
+    if (!location.has_value()) {
+        return;
+    }
+    _context->glUniform2f(*location, value.x, value.y);
+    _context->debugGLError();
+}
+
+auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::vec3 &value) const -> void
+{
+    useProgram();
+    const auto location{findUniformLocation(name)};
+    if (!location.has_value()) {
+        return;
+    }
+    _context->glUniform3f(*location, value.x, value.y, value.z);
+    _context->debugGLError();
+}
+
 auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void
 {
     useProgram();

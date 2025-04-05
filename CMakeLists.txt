@@ -39,6 +39,8 @@ set(PROJECT_SOURCES
     src/direction.h
     src/entity.h
     src/entity.cpp
+    src/framebuffer.h
+    src/framebuffer.cpp
     src/gl_context.h
     src/gl_context.cpp
     src/gl_widget.h
