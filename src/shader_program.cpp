@@ -102,6 +102,17 @@ auto minecraft::ShaderProgram::setUniform(const QString &name, const GLint value
     _context->debugGLError();
 }
 
+auto minecraft::ShaderProgram::setUniform(const QString &name, const GLfloat value) const -> void
+{
+    useProgram();
+    const auto location{findUniformLocation(name)};
+    if (!location.has_value()) {
+        return;
+    }
+    _context->glUniform1f(*location, value);
+    _context->debugGLError();
+}
+
 auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void
 {
     useProgram();

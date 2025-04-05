@@ -40,6 +40,7 @@ private:
     auto loadTexture(const QString &fileName) -> GLuint;
 
     QTimer _timer;
+    qint64 _startTimeMilliseconds;
     qint64 _lastTickMilliseconds;
 
     Scene _scene;

@@ -25,8 +25,8 @@ public:
 
     auto prepareDraw() -> void;
 
-    auto drawSolidBlocks() -> void;
-    auto drawLiquidBlocks() -> void;
+    auto drawOpaqueBlocks() -> void;
+    auto drawNonOpaqueBlocks() -> void;
 
 private:
     template<typename Self>

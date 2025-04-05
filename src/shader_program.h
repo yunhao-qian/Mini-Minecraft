@@ -26,6 +26,7 @@ public:
     auto useProgram() const -> void;
 
     auto setUniform(const QString &name, const GLint value) const -> void;
+    auto setUniform(const QString &name, const GLfloat value) const -> void;
     auto setUniform(const QString &name, const glm::mat4 &value) const -> void;
 
 private:

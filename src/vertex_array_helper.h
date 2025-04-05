@@ -138,12 +138,20 @@ template<typename Vertex>
 auto minecraft::VertexArrayHelper<Vertex>::enableVertexAttributes() const -> void
 {
     for (const auto &attribute : VertexTraits<Vertex>::Attributes) {
-        _context->glVertexAttribPointer(attribute.index,
-                                        attribute.size,
-                                        attribute.type,
-                                        attribute.normalized,
-                                        static_cast<GLsizei>(VertexTraits<Vertex>::Stride),
-                                        reinterpret_cast<const GLvoid *>(attribute.offset));
+        if (attribute.type == GL_BYTE) {
+            _context->glVertexAttribIPointer(attribute.index,
+                                             attribute.size,
+                                             attribute.type,
+                                             static_cast<GLsizei>(VertexTraits<Vertex>::Stride),
+                                             reinterpret_cast<const GLvoid *>(attribute.offset));
+        } else {
+            _context->glVertexAttribPointer(attribute.index,
+                                            attribute.size,
+                                            attribute.type,
+                                            attribute.normalized,
+                                            static_cast<GLsizei>(VertexTraits<Vertex>::Stride),
+                                            reinterpret_cast<const GLvoid *>(attribute.offset));
+        }
         _context->debugGLError();
         _context->glEnableVertexAttribArray(attribute.index);
         _context->debugGLError();

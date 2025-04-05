@@ -1,12 +1,12 @@
 #version 330
 
-uniform bool u_isLiquid;
 uniform sampler2D u_colorTexture;
 uniform sampler2D u_normalTexture;
 
 in vec2 v_textureCoords;
 in vec3 v_normal;
 in vec3 v_tangent;
+in float v_opacity;
 
 out vec4 f_color;
 
@@ -34,5 +34,5 @@ void main()
     float ambientTerm = 0.2;
     float lightIntensity = diffuseTerm + ambientTerm;
 
-    f_color = vec4(textureColor.rgb * lightIntensity, u_isLiquid ? 0.5 : 1.0);
+    f_color = vec4(textureColor.rgb * lightIntensity, v_opacity);
 }

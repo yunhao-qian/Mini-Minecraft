@@ -38,8 +38,8 @@ public:
 
     auto prepareDraw() -> void;
 
-    auto drawSolidBlocks() -> void;
-    auto drawLiquidBlocks() -> void;
+    auto drawOpaqueBlocks() -> void;
+    auto drawNonOpaqueBlocks() -> void;
 
     auto releaseDrawDelegate() -> void;
 

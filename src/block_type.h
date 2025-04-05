@@ -12,7 +12,10 @@ enum class BlockType : std::uint8_t {
     Stone,
     Water,
     Snow,
+    Lava,
 };
+
+auto isOpaqueBlock(const BlockType block) -> bool;
 
 auto isLiquidBlock(const BlockType block) -> bool;
 

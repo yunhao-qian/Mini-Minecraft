@@ -11,6 +11,7 @@
 minecraft::GLWidget::GLWidget(QWidget *const parent)
     : QOpenGLWidget{parent}
     , _timer{}
+    , _startTimeMilliseconds(QDateTime::currentMSecsSinceEpoch())
     , _lastTickMilliseconds{-1}
     , _scene{}
     , _terrainStreamer{this, &_scene.terrain()}
@@ -43,7 +44,7 @@ auto minecraft::GLWidget::initializeGL() -> void
                          ":/shaders/lambert.frag.glsl",
                          {"u_viewMatrix",
                           "u_projectionMatrix",
-                          "u_isLiquid",
+                          "u_time",
                           "u_colorTexture",
                           "u_normalTexture"})) {
         qFatal() << "Failed to create one or more shader programs";
@@ -87,6 +88,8 @@ auto minecraft::GLWidget::paintGL() -> void
 
     _program.setUniform("u_viewMatrix", viewMatrix);
     _program.setUniform("u_projectionMatrix", projectionMatrix);
+    _program.setUniform("u_time",
+                        (QDateTime::currentMSecsSinceEpoch() - _startTimeMilliseconds) / 1000.0f);
     _program.setUniform("u_colorTexture", 0);
     _program.setUniform("u_normalTexture", 1);
 
@@ -94,10 +97,8 @@ auto minecraft::GLWidget::paintGL() -> void
         std::lock_guard lock{_scene.terrainMutex()};
         _terrainStreamer.update(cameraPosition);
         _scene.terrain().prepareDraw();
-        _program.setUniform("u_isLiquid", 0);
-        _scene.terrain().drawSolidBlocks();
-        _program.setUniform("u_isLiquid", 1);
-        _scene.terrain().drawLiquidBlocks();
+        _scene.terrain().drawOpaqueBlocks();
+        _scene.terrain().drawNonOpaqueBlocks();
     }
 }
 

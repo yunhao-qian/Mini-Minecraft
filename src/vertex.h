@@ -32,6 +32,8 @@ struct LambertVertex
     glm::vec2 textureCoords;
     glm::vec3 normal;
     glm::vec3 tangent;
+    GLbyte isWater;
+    GLbyte isLava;
 };
 
 template<>
@@ -44,6 +46,8 @@ struct VertexTraits<LambertVertex>
         {1u, 2, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, textureCoords)},
         {2u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, normal)},
         {3u, 3, GL_FLOAT, GL_FALSE, offsetof(LambertVertex, tangent)},
+        {4u, 1, GL_BYTE, GL_FALSE, offsetof(LambertVertex, isWater)},
+        {5u, 1, GL_BYTE, GL_FALSE, offsetof(LambertVertex, isLava)},
     })};
 };
 
