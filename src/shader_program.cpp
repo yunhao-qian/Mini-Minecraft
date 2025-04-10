@@ -1,188 +1,134 @@
 #include "shader_program.h"
 
+#include <QByteArray>
 #include <QFile>
-#include <QTextStream>
 
-#include <algorithm>
+#include <utility>
 
-minecraft::ShaderProgram::ShaderProgram(GLContext *const context)
-    : _context{context}
-    , _vertexShader{0u}
-    , _fragmentShader{0u}
-    , _program{0u}
-    , _uniformLocations{}
-{}
+namespace minecraft {
 
-minecraft::ShaderProgram::~ShaderProgram()
+void ShaderProgram::create(const std::vector<QString> &vertexShaderFileNames,
+                           const std::vector<QString> &fragmentShaderFileNames,
+                           const std::vector<QString> &uniformNames)
 {
-    _context->glDeleteProgram(_program);
-    _context->debugGLError();
-    _context->glDeleteShader(_vertexShader);
-    _context->debugGLError();
-    _context->glDeleteShader(_fragmentShader);
-    _context->debugGLError();
-}
-
-auto minecraft::ShaderProgram::create(const QString &vertexShaderPath,
-                                      const QString &fragmentShaderPath,
-                                      const std::vector<QString> &uniformNames) -> bool
-{
-    _vertexShader = _context->glCreateShader(GL_VERTEX_SHADER);
-    _context->debugGLError();
-    if (_vertexShader == 0u) {
-        qWarning() << "Failed to create vertex shader";
-        return false;
+    const auto vertexShader{_context->glCreateShader(GL_VERTEX_SHADER)};
+    _context->debugError();
+    if (vertexShader == 0u) {
+        qFatal() << "Failed to create vertex shader";
     }
 
-    _fragmentShader = _context->glCreateShader(GL_FRAGMENT_SHADER);
-    _context->debugGLError();
-    if (_fragmentShader == 0u) {
-        qWarning() << "Failed to create fragment shader";
-        return false;
+    const auto fragmentShader{_context->glCreateShader(GL_FRAGMENT_SHADER)};
+    _context->debugError();
+    if (fragmentShader == 0u) {
+        qFatal() << "Failed to create fragment shader";
     }
 
     _program = _context->glCreateProgram();
-    _context->debugGLError();
+    _context->debugError();
     if (_program == 0u) {
-        qWarning() << "Failed to create shader program";
-        return false;
+        qFatal() << "Failed to create shader program";
     }
 
-    if (!compileShader(_vertexShader, vertexShaderPath)
-        || !compileShader(_fragmentShader, fragmentShaderPath)) {
-        return false;
-    }
+    compileShader(vertexShader, vertexShaderFileNames);
+    compileShader(fragmentShader, fragmentShaderFileNames);
 
-    _context->glAttachShader(_program, _vertexShader);
-    _context->debugGLError();
-    _context->glAttachShader(_program, _fragmentShader);
-    _context->debugGLError();
+    _context->glAttachShader(_program, vertexShader);
+    _context->debugError();
+    _context->glAttachShader(_program, fragmentShader);
+    _context->debugError();
     _context->glLinkProgram(_program);
-    _context->debugGLError();
-    {
-        GLint programLinked{GL_FALSE};
-        _context->glGetProgramiv(_program, GL_LINK_STATUS, &programLinked);
-        _context->debugGLError();
-        if (programLinked == GL_FALSE) {
-            qWarning() << "Failed to link shader program";
-            _context->debugProgramInfoLog(_program);
-            return false;
+    _context->debugError();
+
+    GLint linkStatus{GL_FALSE};
+    _context->glGetProgramiv(_program, GL_LINK_STATUS, &linkStatus);
+    _context->debugError();
+    if (linkStatus == GL_FALSE) {
+        // Linking failed. Print the information log if available.
+
+        GLint infoLogLength{0};
+        _context->glGetProgramiv(_program, GL_INFO_LOG_LENGTH, &infoLogLength);
+        _context->debugError();
+        if (infoLogLength <= 0) {
+            qFatal() << "Failed to link shader program, but no information log is available";
         }
+
+        std::vector<GLchar> infoLog(infoLogLength);
+        _context->glGetProgramInfoLog(_program, infoLogLength, nullptr, infoLog.data());
+        _context->debugError();
+        qFatal().noquote().nospace() << "Failed to link shader program:\n" << infoLog.data();
     }
 
+    // Delete the shaders as they are no longer needed.
+    _context->glDeleteShader(vertexShader);
+    _context->debugError();
+    _context->glDeleteShader(fragmentShader);
+    _context->debugError();
+
+    // Get uniform locations.
     _uniformLocations.reserve(uniformNames.size());
     for (const auto &name : uniformNames) {
         const auto nameBytes{name.toUtf8()};
         const auto location{_context->glGetUniformLocation(_program, nameBytes.data())};
-        _context->debugGLError();
+        _context->debugError();
         if (location < 0) {
             qWarning() << "Failed to get location for uniform" << name;
-            return false;
+            continue;
         }
-        _uniformLocations.emplace_back(name, static_cast<GLuint>(location));
+        _uniformLocations.emplace(name, static_cast<GLuint>(location));
     }
-
-    return true;
 }
 
-auto minecraft::ShaderProgram::useProgram() const -> void
+void ShaderProgram::compileShader(const GLuint shader, const std::vector<QString> &fileNames) const
 {
-    _context->glUseProgram(_program);
-    _context->debugGLError();
-}
+    // The source code are in multiple strings, starting with the version string, followed by one
+    // string per .glsl file.
 
-auto minecraft::ShaderProgram::setUniform(const QString &name, const GLint value) const -> void
-{
-    useProgram();
-    const auto location{findUniformLocation(name)};
-    if (!location.has_value()) {
-        return;
-    }
-    _context->glUniform1i(*location, value);
-    _context->debugGLError();
-}
+    std::vector<const GLchar *> strings;
+    strings.reserve(fileNames.size() + 1u);
+    // Add the version string first.
+    strings.push_back("#version 330 core\n");
 
-auto minecraft::ShaderProgram::setUniform(const QString &name, const GLfloat value) const -> void
-{
-    useProgram();
-    const auto location{findUniformLocation(name)};
-    if (!location.has_value()) {
-        return;
-    }
-    _context->glUniform1f(*location, value);
-    _context->debugGLError();
-}
+    std::vector<QByteArray> stringData;
+    stringData.reserve(fileNames.size());
 
-auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::vec2 &value) const -> void
-{
-    useProgram();
-    const auto location{findUniformLocation(name)};
-    if (!location.has_value()) {
-        return;
-    }
-    _context->glUniform2f(*location, value.x, value.y);
-    _context->debugGLError();
-}
-
-auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::vec3 &value) const -> void
-{
-    useProgram();
-    const auto location{findUniformLocation(name)};
-    if (!location.has_value()) {
-        return;
-    }
-    _context->glUniform3f(*location, value.x, value.y, value.z);
-    _context->debugGLError();
-}
-
-auto minecraft::ShaderProgram::setUniform(const QString &name, const glm::mat4 &value) const -> void
-{
-    useProgram();
-    const auto location{findUniformLocation(name)};
-    if (!location.has_value()) {
-        return;
-    }
-    _context->glUniformMatrix4fv(*location, 1, GL_FALSE, &value[0][0]);
-    _context->debugGLError();
-}
-
-auto minecraft::ShaderProgram::compileShader(const GLuint shader, const QString &filePath) const
-    -> bool
-{
-    {
-        QFile file{filePath};
+    for (const auto &fileName : fileNames) {
+        QFile file{fileName};
         if (!file.open(QFile::ReadOnly | QFile::Text)) {
-            qWarning() << "Failed to open shader file" << filePath;
-            return false;
+            qFatal() << "Failed to open shader file" << fileName;
         }
-        QTextStream stream{&file};
-        const auto shaderSourceBytes{stream.readAll().toUtf8()};
-        const auto shaderSourceData{shaderSourceBytes.data()};
-        _context->glShaderSource(shader, 1, &shaderSourceData, nullptr);
-        _context->debugGLError();
+        auto fileData{file.readAll()};
+        if (fileData.isEmpty()) {
+            qFatal() << "Shader file" << fileName << "is empty or could not be read";
+        }
+        const auto &movedFileData{stringData.emplace_back(std::move(fileData))};
+        strings.push_back(movedFileData.constData());
     }
+
+    _context->glShaderSource(shader, static_cast<GLsizei>(strings.size()), strings.data(), nullptr);
+    _context->debugError();
     _context->glCompileShader(shader);
-    {
-        GLint shaderCompiled{GL_FALSE};
-        _context->glGetShaderiv(shader, GL_COMPILE_STATUS, &shaderCompiled);
-        _context->debugGLError();
-        if (shaderCompiled == GL_FALSE) {
-            qWarning() << "Failed to compile shader file" << filePath;
-            _context->debugShaderInfoLog(shader);
-            return false;
-        }
+    _context->debugError();
+
+    GLint compileStatus{GL_FALSE};
+    _context->glGetShaderiv(shader, GL_COMPILE_STATUS, &compileStatus);
+    _context->debugError();
+    if (compileStatus == GL_TRUE) {
+        return;
     }
-    return true;
+
+    // Compilation failed. Print the information log if available.
+
+    GLint infoLogLength{0};
+    _context->glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
+    _context->debugError();
+    if (infoLogLength <= 0) {
+        qFatal() << "Failed to compile shader, but no information log is available";
+    }
+
+    std::vector<GLchar> infoLog(infoLogLength);
+    _context->glGetShaderInfoLog(shader, infoLogLength, nullptr, infoLog.data());
+    _context->debugError();
+    qFatal().noquote().nospace() << "Failed to compile shader:\n" << infoLog.data();
 }
 
-auto minecraft::ShaderProgram::findUniformLocation(const QString &name) const
-    -> std::optional<GLuint>
-{
-    const auto it{std::ranges::find_if(_uniformLocations,
-                                       [&name](const auto &pair) { return pair.first == name; })};
-    if (it == _uniformLocations.end()) {
-        qWarning() << "Uniform" << name << "not found in shader program";
-        return std::nullopt;
-    }
-    return it->second;
-}
+} // namespace minecraft

@@ -6,16 +6,14 @@
 namespace minecraft {
 
 enum class BlockType : std::uint8_t {
-    Empty,
-    Grass,
-    Dirt,
-    Stone,
-    Water,
-    Snow,
-    Lava,
+    Air = 0,
+    Dirt = 1,
+    Grass = 2,
+    Lava = 3,
+    Snow = 4,
+    Stone = 5,
+    Water = 6,
 };
-
-auto isLiquidBlock(const BlockType block) -> bool;
 
 } // namespace minecraft
 

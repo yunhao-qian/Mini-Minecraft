@@ -3,8 +3,10 @@
 #include <QApplication>
 #include <QSurfaceFormat>
 
-auto main(int argc, char **const argv) -> int
+int main(int argc, char **const argv)
 {
+    using minecraft::MainWindow;
+
     const QApplication app{argc, argv};
 
     {
@@ -12,12 +14,12 @@ auto main(int argc, char **const argv) -> int
         format.setVersion(4, 1);
         format.setOption(QSurfaceFormat::DeprecatedFunctions, false);
         format.setProfile(QSurfaceFormat::CoreProfile);
-        format.setSamples(4);
+        // TODO: Multisampling is disabled by default. May consider enabling it in the future for
+        // better anti-aliasing.
         QSurfaceFormat::setDefaultFormat(format);
     }
-    qDebug() << "Default surface format:" << QSurfaceFormat::defaultFormat();
 
-    minecraft::MainWindow window;
+    MainWindow window;
     window.show();
 
     return app.exec();

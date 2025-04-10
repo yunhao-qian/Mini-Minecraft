@@ -1,9 +1,42 @@
 #include "player_info_window.h"
 
+#include <QFontDatabase>
 #include <QFormLayout>
 #include <QString>
 
-minecraft::PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
+#include <array>
+#include <ranges>
+
+namespace minecraft {
+
+namespace {
+
+QString vec3ToString(const glm::vec3 &vector)
+{
+    QString result{"( %1, %2, %3 )"};
+    for (const auto i : std::views::iota(0, 3)) {
+        result = result.arg(vector[i], 10, 'f', 3);
+    }
+    return result;
+}
+
+QString ivec2ToString(const glm::ivec2 vector)
+{
+    QString result{"( %1, %2 )"};
+    for (const auto i : std::views::iota(0, 2)) {
+        result = result.arg(vector[i], 5);
+    }
+    return result;
+}
+
+QString intToString(const int value)
+{
+    return QString{"( %1 )"}.arg(value, 5);
+}
+
+} // namespace
+
+PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
     : QWidget{parent}
     , _positionLabel{nullptr}
     , _velocityLabel{nullptr}
@@ -14,14 +47,22 @@ minecraft::PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
 {
     setWindowTitle("Player Information");
 
+    const auto labelPointers{std::to_array<QLabel **>({
+        &_positionLabel,
+        &_velocityLabel,
+        &_accelerationLabel,
+        &_lookVectorLabel,
+        &_chunkLabel,
+        &_terrainZoneLabel,
+    })};
+
     {
-        const QString noInfoString{"--"};
-        _positionLabel = new QLabel{noInfoString};
-        _velocityLabel = new QLabel{noInfoString};
-        _accelerationLabel = new QLabel{noInfoString};
-        _lookVectorLabel = new QLabel{noInfoString};
-        _chunkLabel = new QLabel{noInfoString};
-        _terrainZoneLabel = new QLabel{noInfoString};
+        // Use a fixed-width font for better alignment.
+        const auto font{QFontDatabase::systemFont(QFontDatabase::FixedFont)};
+        for (const auto labelPointer : labelPointers) {
+            *labelPointer = new QLabel{};
+            (*labelPointer)->setFont(font);
+        }
     }
 
     const auto layout{new QFormLayout{this}};
@@ -33,28 +74,44 @@ minecraft::PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
     layout->addRow("Chunk:", _chunkLabel);
     layout->addRow("Terrain zone:", _terrainZoneLabel);
 
+    // Fill in dummy data to adjust the window size.
+    setPlayerInfo({
+        .position{0.0f, 0.0f, 0.0f},
+        .velocity{0.0f, 0.0f, 0.0f},
+        .acceleration{0.0f, 0.0f, 0.0f},
+        .lookVector{0.0f, 0.0f, -1.0f},
+        .chunk{0, 0},
+        .terrainZone = 0,
+    });
     adjustSize();
-    resize(480, height());
+    {
+        const QString noInfoString{"--"};
+        for (const auto labelPointer : labelPointers) {
+            (*labelPointer)->setText(noInfoString);
+        }
+    }
 }
 
-auto minecraft::PlayerInfoWindow::setPlayerInfo(const PlayerInfoDisplayData &data) -> void
+void PlayerInfoWindow::setPlayerInfo(const PlayerInfoDisplayData &data)
 {
-    _positionLabel->setText(data.position);
-    _velocityLabel->setText(data.velocity);
-    _accelerationLabel->setText(data.acceleration);
-    _lookVectorLabel->setText(data.lookVector);
-    _chunkLabel->setText(data.chunk);
-    _terrainZoneLabel->setText(data.terrainZone);
+    _positionLabel->setText(vec3ToString(data.position));
+    _velocityLabel->setText(vec3ToString(data.velocity));
+    _accelerationLabel->setText(vec3ToString(data.acceleration));
+    _lookVectorLabel->setText(vec3ToString(data.lookVector));
+    _chunkLabel->setText(ivec2ToString(data.chunk));
+    _terrainZoneLabel->setText(intToString(data.terrainZone));
 }
 
-auto minecraft::PlayerInfoWindow::showEvent(QShowEvent *const event) -> void
+void PlayerInfoWindow::showEvent(QShowEvent *const event)
 {
     QWidget::showEvent(event);
     emit visibleChanged(true);
 }
 
-auto minecraft::PlayerInfoWindow::closeEvent(QCloseEvent *const event) -> void
+void PlayerInfoWindow::closeEvent(QCloseEvent *const event)
 {
     QWidget::closeEvent(event);
     emit visibleChanged(false);
 }
+
+} // namespace minecraft

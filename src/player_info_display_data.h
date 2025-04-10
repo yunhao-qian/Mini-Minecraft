@@ -1,18 +1,18 @@
 #ifndef MINI_MINECRAFT_PLAYER_INFO_DISPLAY_DATA_H
 #define MINI_MINECRAFT_PLAYER_INFO_DISPLAY_DATA_H
 
-#include <QString>
+#include <glm/glm.hpp>
 
 namespace minecraft {
 
 struct PlayerInfoDisplayData
 {
-    QString position;
-    QString velocity;
-    QString acceleration;
-    QString lookVector;
-    QString chunk;
-    QString terrainZone;
+    glm::vec3 position;
+    glm::vec3 velocity;
+    glm::vec3 acceleration;
+    glm::vec3 lookVector;
+    glm::ivec2 chunk;
+    int terrainZone;
 };
 
 } // namespace minecraft

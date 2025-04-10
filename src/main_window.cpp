@@ -3,19 +3,23 @@
 #include "camera_controls_window.h"
 #include "player_info_window.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QMenuBar>
 
-minecraft::MainWindow::MainWindow(QWidget *const parent)
+namespace minecraft {
+
+MainWindow::MainWindow(QWidget *const parent)
     : QMainWindow{parent}
-    , _glWidget{nullptr}
+    , _openGLWidget{nullptr}
 {
     setWindowTitle("Mini Minecraft");
     resize(1280, 960);
 
-    _glWidget = new GLWidget{};
-    setCentralWidget(_glWidget);
-    _glWidget->setFocus();
+    _openGLWidget = new OpenGLWidget{};
+    setCentralWidget(_openGLWidget);
+    // Give the keyboard input focus to this widget.
+    _openGLWidget->setFocus();
 
     const auto playerInfoWindow{new PlayerInfoWindow{this}};
     playerInfoWindow->setWindowFlag(Qt::Dialog);
@@ -55,11 +59,14 @@ minecraft::MainWindow::MainWindow(QWidget *const parent)
             &PlayerInfoWindow::visibleChanged,
             actionPlayerInfo,
             &QAction::setChecked);
-
-    connect(actionCameraControls, &QAction::triggered, cameraControlsWindow, &QWidget::show);
-
-    connect(_glWidget,
-            &GLWidget::playerInfoChanged,
+    // Use signals and slots instead of direct function calls because OpenGLWidget::tick() may not
+    // run on the GUI thread.
+    connect(_openGLWidget,
+            &OpenGLWidget::playerInfoChanged,
             playerInfoWindow,
             &PlayerInfoWindow::setPlayerInfo);
+
+    connect(actionCameraControls, &QAction::triggered, cameraControlsWindow, &QWidget::show);
 }
+
+} // namespace minecraft

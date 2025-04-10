@@ -1,149 +1,100 @@
 #include "framebuffer.h"
 
-minecraft::Framebuffer::Framebuffer(GLContext *const context)
-    : _context{context}
-    , _width{0}
-    , _height{0}
-    , _fbo{0u}
-    , _colorTexture{0u}
-    , _depthTexture{0u}
-{}
+namespace minecraft {
 
-minecraft::Framebuffer::~Framebuffer()
+void Framebuffer::resizeViewport(const int width, const int height)
 {
-    destroy();
-}
-
-auto minecraft::Framebuffer::width() const -> int
-{
-    return _width;
-}
-
-auto minecraft::Framebuffer::height() const -> int
-{
-    return _height;
-}
-
-auto minecraft::Framebuffer::colorTexture() const -> GLuint
-{
-    return _colorTexture;
-}
-
-auto minecraft::Framebuffer::depthTexture() const -> GLuint
-{
-    return _depthTexture;
-}
-
-auto minecraft::Framebuffer::setSize(const int width, const int height) -> void
-{
-    if (_width == width && _height == height) {
+    if (width == _width && height == _height) {
         return;
     }
-    destroy();
+    releaseResources();
     _width = width;
     _height = height;
 
     _context->glGenFramebuffers(1, &_fbo);
-    _context->debugGLError();
+    _context->debugError();
     _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-    _context->debugGLError();
+    _context->debugError();
 
-    _context->glGenTextures(1, &_colorTexture);
-    _context->debugGLError();
-    _context->glBindTexture(GL_TEXTURE_2D, _colorTexture);
-    _context->debugGLError();
-    _context->glTexImage2D(GL_TEXTURE_2D,
-                           0,
-                           GL_RGBA8,
-                           width,
-                           height,
-                           0,
-                           GL_RGBA,
-                           GL_UNSIGNED_BYTE,
-                           nullptr);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    _context->debugGLError();
-    _context->glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                     GL_COLOR_ATTACHMENT0,
-                                     GL_TEXTURE_2D,
-                                     _colorTexture,
-                                     0);
-    _context->debugGLError();
+    // Use higher precisions for the normal and depth textures.
+    _normalTexture = generateAndAttachTexture(GL_RGBA16F,
+                                              GL_RGBA,
+                                              GL_HALF_FLOAT,
+                                              GL_COLOR_ATTACHMENT0);
+    _albedoTexture = generateAndAttachTexture(GL_RGBA8,
+                                              GL_RGBA,
+                                              GL_UNSIGNED_BYTE,
+                                              GL_COLOR_ATTACHMENT1);
+    // Use float32 for the depth texture because we may need to recover accurate world positions
+    // from the depth values. This saves the need for a separate position texture.
+    _depthTexture = generateAndAttachTexture(GL_DEPTH_COMPONENT32F,
+                                             GL_DEPTH_COMPONENT,
+                                             GL_FLOAT,
+                                             GL_DEPTH_ATTACHMENT);
+
     {
-        GLenum drawBuffers[1]{GL_COLOR_ATTACHMENT0};
-        _context->glDrawBuffers(1, drawBuffers);
-        _context->debugGLError();
+        const GLenum drawBuffers[2]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+        _context->glDrawBuffers(2, drawBuffers);
+        _context->debugError();
     }
 
-    _context->glGenTextures(1, &_depthTexture);
-    _context->debugGLError();
-    _context->glBindTexture(GL_TEXTURE_2D, _depthTexture);
-    _context->debugGLError();
-    _context->glTexImage2D(GL_TEXTURE_2D,
-                           0,
-                           GL_DEPTH_COMPONENT24,
-                           width,
-                           height,
-                           0,
-                           GL_DEPTH_COMPONENT,
-                           GL_FLOAT,
-                           nullptr);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    _context->debugGLError();
-    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    _context->debugGLError();
+    {
+        const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
+        _context->debugError();
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            qFatal() << "Failed to initialize framebuffer";
+        }
+    }
+
+    // The Framebuffer class does not know the default framebuffer's ID, as it is not zero in Qt.
+    // Users are responsible for recovering the framebuffer if needed.
+}
+
+void Framebuffer::releaseResources()
+{
+    _width = 0;
+    _height = 0;
+
+    _context->glDeleteFramebuffers(1, &_fbo);
+    _context->debugError();
+    _fbo = 0u;
+
+    for (const auto texture : {&_normalTexture, &_albedoTexture, &_depthTexture}) {
+        _context->glDeleteTextures(1, texture);
+        _context->debugError();
+        *texture = 0u;
+    }
+}
+
+GLuint Framebuffer::generateAndAttachTexture(const GLint internalFormat,
+                                             const GLenum format,
+                                             const GLenum type,
+                                             const GLenum attachment)
+{
+    GLuint texture;
+    _context->glGenTextures(1, &texture);
+    _context->debugError();
+    _context->glBindTexture(GL_TEXTURE_2D, texture);
+    _context->debugError();
+    _context
+        ->glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, format, type, nullptr);
+    _context->debugError();
+
+    // All passes are pixel-to-pixel aligned, so there is no aliasing issue.
+    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    _context->debugError();
+    _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    _context->debugError();
+
     _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    _context->debugGLError();
+    _context->debugError();
     _context->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    _context->debugGLError();
-    _context->glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                     GL_DEPTH_ATTACHMENT,
-                                     GL_TEXTURE_2D,
-                                     _depthTexture,
-                                     0);
-    _context->debugGLError();
+    _context->debugError();
 
-    const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
-    _context->debugGLError();
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        qFatal() << "Failed to initialize framebuffer";
-    }
+    _context->glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, texture, 0);
+    _context->debugError();
 
-    _context->glBindFramebuffer(GL_FRAMEBUFFER, 0u);
-    _context->debugGLError();
+    return texture;
 }
 
-auto minecraft::Framebuffer::fbo() const -> GLuint
-{
-    return _fbo;
-}
-
-auto minecraft::Framebuffer::bind() -> void
-{
-    _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-    _context->debugGLError();
-}
-
-auto minecraft::Framebuffer::destroy() -> void
-{
-    if (_colorTexture != 0u) {
-        _context->glDeleteTextures(1, &_colorTexture);
-        _colorTexture = 0u;
-    }
-    if (_depthTexture != 0u) {
-        _context->glDeleteTextures(1, &_depthTexture);
-        _depthTexture = 0u;
-    }
-    if (_fbo != 0u) {
-        _context->glDeleteFramebuffers(1, &_fbo);
-        _fbo = 0u;
-    }
-}
+} // namespace minecraft

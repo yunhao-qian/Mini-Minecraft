@@ -2,82 +2,33 @@
 
 #include <utility>
 
-auto minecraft::Terrain::getChunk(const int x, const int z) const -> const TerrainChunk *
-{
-    return getChunk(*this, x, z);
-}
+namespace minecraft {
 
-auto minecraft::Terrain::getChunk(const int x, const int z) -> TerrainChunk *
+void Terrain::setChunk(std::unique_ptr<TerrainChunk> chunk)
 {
-    return getChunk(*this, x, z);
-}
-
-auto minecraft::Terrain::setChunk(std::unique_ptr<TerrainChunk> chunk) -> void
-{
-    const auto minX{chunk->minX()};
-    const auto minZ{chunk->minZ()};
+    const auto originXZ{chunk->originXZ()};
     const auto chunkPointer{chunk.get()};
-    _chunks[{minX, minZ}] = std::move(chunk);
-    if (const auto neighbor{getChunk(minX + TerrainChunk::SizeX, minZ)}; neighbor != nullptr) {
+    _chunks[originXZ] = std::move(chunk);
+    if (const auto neighbor{getChunk(originXZ + glm::ivec2{TerrainChunk::SizeX, 0})};
+        neighbor != nullptr) {
         chunkPointer->setNeighbor(Direction::PositiveX, neighbor);
         neighbor->setNeighbor(Direction::NegativeX, chunkPointer);
     }
-    if (const auto neighbor{getChunk(minX - TerrainChunk::SizeX, minZ)}; neighbor != nullptr) {
+    if (const auto neighbor{getChunk(originXZ - glm::ivec2{TerrainChunk::SizeX, 0})};
+        neighbor != nullptr) {
         chunkPointer->setNeighbor(Direction::NegativeX, neighbor);
         neighbor->setNeighbor(Direction::PositiveX, chunkPointer);
     }
-    if (const auto neighbor{getChunk(minX, minZ + TerrainChunk::SizeZ)}; neighbor != nullptr) {
+    if (const auto neighbor{getChunk(originXZ + glm::ivec2{0, TerrainChunk::SizeZ})};
+        neighbor != nullptr) {
         chunkPointer->setNeighbor(Direction::PositiveZ, neighbor);
         neighbor->setNeighbor(Direction::NegativeZ, chunkPointer);
     }
-    if (const auto neighbor{getChunk(minX, minZ - TerrainChunk::SizeZ)}; neighbor != nullptr) {
+    if (const auto neighbor{getChunk(originXZ - glm::ivec2{0, TerrainChunk::SizeZ})};
+        neighbor != nullptr) {
         chunkPointer->setNeighbor(Direction::NegativeZ, neighbor);
         neighbor->setNeighbor(Direction::PositiveZ, chunkPointer);
     }
 }
 
-auto minecraft::Terrain::getBlockGlobal(const int x, const int y, const int z) const -> BlockType
-{
-    if (y < 0 || y >= TerrainChunk::SizeY) {
-        return BlockType::Empty;
-    }
-    const auto chunk{getChunk(x, z)};
-    if (chunk == nullptr) {
-        return BlockType::Empty;
-    }
-    return chunk->getBlockLocal(x - chunk->minX(), y, z - chunk->minZ());
-}
-
-auto minecraft::Terrain::setBlockGlobal(const int x, const int y, const int z, const BlockType block)
-    -> void
-{
-    if (y < 0 || y >= TerrainChunk::SizeY) {
-        return;
-    }
-    const auto chunk{getChunk(x, z)};
-    if (chunk == nullptr) {
-        return;
-    }
-    chunk->setBlockLocal(x - chunk->minX(), y, z - chunk->minZ(), block);
-}
-
-auto minecraft::Terrain::prepareDraw() -> void
-{
-    for (const auto &[_, chunk] : _chunks) {
-        chunk->prepareDraw();
-    }
-}
-
-auto minecraft::Terrain::drawSolidBlocks() -> void
-{
-    for (const auto &[_, chunk] : _chunks) {
-        chunk->drawSolidBlocks();
-    }
-}
-
-auto minecraft::Terrain::drawLiquidBlocks() -> void
-{
-    for (const auto &[_, chunk] : _chunks) {
-        chunk->drawLiquidBlocks();
-    }
-}
+} // namespace minecraft

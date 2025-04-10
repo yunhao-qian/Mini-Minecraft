@@ -3,66 +3,103 @@
 
 #include "block_type.h"
 #include "direction.h"
-#include "gl_context.h"
-#include "terrain_chunk_draw_delegate.h"
+#include "instanced_renderer.h"
+#include "opengl_context.h"
+#include "vertex_attribute.h"
+
+#include <glm/glm.hpp>
 
 #include <array>
-#include <memory>
-#include <utility>
+#include <cstdint>
+#include <mutex>
+#include <vector>
 
 namespace minecraft {
 
 class TerrainChunk
 {
 public:
-    TerrainChunk(GLContext *const context, const int minX, const int minZ);
+    struct PrepareDrawResult
+    {
+        bool hasOpaqueFaces;
+        bool hasTranslucentFaces;
+    };
 
-    auto minX() const -> int;
-    auto minZ() const -> int;
+    TerrainChunk(OpenGLContext *const context, const glm::ivec2 originXZ);
 
-    auto getBlockLocal(const int x, const int y, const int z) const -> BlockType;
-    auto setBlockLocal(const int x, const int y, const int z, const BlockType block) -> void;
+    glm::ivec2 originXZ() const;
 
-    auto getNeighbor(const Direction direction) const -> const TerrainChunk *;
-    auto getNeighbor(const Direction direction) -> TerrainChunk *;
-    auto setNeighbor(const Direction direction, TerrainChunk *const chunk) -> void;
+    const TerrainChunk *getNeighbor(const Direction direction) const;
+    TerrainChunk *getNeighbor(const Direction direction);
+    void setNeighbor(const Direction direction, TerrainChunk *const chunk);
 
-    auto getNeighborBlockLocal(const int x, const int y, const int z, const Direction direction) const
-        -> BlockType;
+    BlockType getBlockAtLocal(const glm::ivec3 &position) const;
+    void setBlockAtLocal(const glm::ivec3 &position, const BlockType block);
 
-    auto isVisible() const -> bool;
-    auto setVisible(const bool visible) -> void;
+    bool isVisible() const;
+    void setVisible(const bool visible);
 
-    auto markDirty() -> void;
-    auto markSelfAndNeighborsDirty() -> void;
+    void markSelfDirty();
+    void markSelfAndNeighborsDirty();
 
-    auto prepareDraw() -> void;
+    PrepareDrawResult prepareDraw();
 
-    auto drawSolidBlocks() -> void;
-    auto drawLiquidBlocks() -> void;
+    void drawOpaque();
+    void drawTranslucent();
 
-    auto releaseDrawDelegate() -> void;
+    void releaseRendererResources();
 
-    static auto alignToChunkOrigin(const int x, const int z) -> std::pair<int, int>;
+    static glm::ivec2 alignToChunkOrigin(const glm::ivec2 xz);
 
-    static constexpr auto SizeX{16};
-    static constexpr auto SizeY{256};
-    static constexpr auto SizeZ{16};
+    static constexpr int SizeX{64};
+    static constexpr int SizeY{256};
+    static constexpr int SizeZ{64};
 
 private:
+    friend class BlockFaceGenerationTask;
+
     template<typename Self>
     static auto getNeighborPointer(Self &self, const Direction direction);
 
-    GLContext *_context;
-    int _minX;
-    int _minZ;
-    std::array<std::array<std::array<BlockType, SizeZ>, SizeY>, SizeX> _blocks;
+    glm::ivec2 _originXZ;
     std::array<TerrainChunk *, 4> _neighbors;
-    bool _visible;
-    std::unique_ptr<TerrainChunkDrawDelegate> _drawDelegate;
+
+    std::array<std::array<std::array<BlockType, SizeZ>, SizeY>, SizeX> _blocks;
+    std::int32_t _blockVersion;
+
+    bool _isVisible;
+
+    std::mutex _blockFaceMutex;
+    bool _isBlockFaceReady;
+    std::vector<BlockFace> _opaqueBlockFaces;
+    std::vector<BlockFace> _translucentBlockFaces;
+    std::int32_t _blockFaceVersion;
+
+    InstancedRenderer _opaqueRenderer;
+    InstancedRenderer _translucentRenderer;
+    std::int32_t _rendererVersion;
 };
 
-} // namespace minecraft
+inline TerrainChunk::TerrainChunk(OpenGLContext *const context, const glm::ivec2 originXZ)
+    : _originXZ{originXZ}
+    , _neighbors{}
+    , _blocks{}
+    , _blockVersion{0}
+    , _isVisible{false}
+    , _blockFaceMutex{}
+    , _isBlockFaceReady{false}
+    , _opaqueBlockFaces{}
+    , _translucentBlockFaces{}
+    , _blockFaceVersion{-1}
+    , _opaqueRenderer{context}
+    , _translucentRenderer{context}
+    , _rendererVersion{-1}
+{}
+
+inline glm::ivec2 TerrainChunk::originXZ() const
+{
+    return _originXZ;
+}
 
 template<typename Self>
 auto minecraft::TerrainChunk::getNeighborPointer(Self &self, const Direction direction)
@@ -80,5 +117,87 @@ auto minecraft::TerrainChunk::getNeighborPointer(Self &self, const Direction dir
         return static_cast<decltype(&self._neighbors[0])>(nullptr);
     }
 }
+
+inline const TerrainChunk *TerrainChunk::getNeighbor(const Direction direction) const
+{
+    return *getNeighborPointer(*this, direction);
+}
+
+inline TerrainChunk *TerrainChunk::getNeighbor(const Direction direction)
+{
+    return *getNeighborPointer(*this, direction);
+}
+
+inline void TerrainChunk::setNeighbor(const Direction direction, TerrainChunk *const chunk)
+{
+    *getNeighborPointer(*this, direction) = chunk;
+}
+
+inline BlockType TerrainChunk::getBlockAtLocal(const glm::ivec3 &position) const
+{
+    return _blocks[position.x][position.y][position.z];
+}
+
+inline void TerrainChunk::setBlockAtLocal(const glm::ivec3 &position, const BlockType block)
+{
+    // We do not increment the block version here because this makes terrain generation very
+    // inefficient. Users are responsible for calling markSelfDirty() or markSelfAndNeighborsDirty()
+    // after modifications.
+    _blocks[position.x][position.y][position.z] = block;
+}
+
+inline bool TerrainChunk::isVisible() const
+{
+    return _isVisible;
+}
+
+inline void TerrainChunk::setVisible(const bool visible)
+{
+    _isVisible = visible;
+}
+
+inline void TerrainChunk::markSelfDirty()
+{
+    ++_blockVersion;
+}
+
+inline void TerrainChunk::markSelfAndNeighborsDirty()
+{
+    markSelfDirty();
+    for (const auto neighbor : _neighbors) {
+        if (neighbor != nullptr) {
+            neighbor->markSelfDirty();
+        }
+    }
+}
+
+inline void TerrainChunk::drawOpaque()
+{
+    // This gives 2 triangles per quad: (0, 1, 2) and (0, 2, 3).
+    _opaqueRenderer.draw(4, GL_TRIANGLE_FAN);
+}
+
+inline void TerrainChunk::drawTranslucent()
+{
+    _translucentRenderer.draw(4, GL_TRIANGLE_FAN);
+}
+
+inline void TerrainChunk::releaseRendererResources()
+{
+    _opaqueRenderer.releaseResources();
+    _translucentRenderer.releaseResources();
+    _rendererVersion = -1;
+}
+
+inline glm::ivec2 TerrainChunk::alignToChunkOrigin(const glm::ivec2 xz)
+{
+    const auto x{xz[0]};
+    const auto z{xz[1]};
+    const auto alignedX{(x >= 0 ? x : x - (SizeX - 1)) / SizeX * SizeX};
+    const auto alignedZ{(z >= 0 ? z : z - (SizeZ - 1)) / SizeZ * SizeZ};
+    return {alignedX, alignedZ};
+}
+
+} // namespace minecraft
 
 #endif // MINI_MINECRAFT_TERRAIN_CHUNK_H

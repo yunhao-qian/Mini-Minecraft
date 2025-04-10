@@ -1,34 +1,21 @@
-#include "aligned_box.h"
+#include "aligned_box_3d.h"
 
 #include <algorithm>
 #include <ranges>
 
-minecraft::AlignedBox::AlignedBox(const glm::vec3 &minP, const glm::vec3 &maxP)
-    : _minP{minP}
-    , _maxP{maxP}
-{}
+namespace minecraft {
 
-auto minecraft::AlignedBox::minP() const -> const glm::vec3 &
-{
-    return _minP;
-}
-
-auto minecraft::AlignedBox::maxP() const -> const glm::vec3 &
-{
-    return _maxP;
-}
-
-auto minecraft::AlignedBox::sweep(const glm::vec3 &velocity,
-                                  const AlignedBox &other,
-                                  float &hitTime,
-                                  glm::vec3 &hitNormal) const -> bool
+bool AlignedBox3D::sweep(const glm::vec3 &velocity,
+                         const AlignedBox3D &other,
+                         float &hitTime,
+                         glm::vec3 &hitNormal) const
 {
     auto minTime{0.0f};
     auto maxTime{hitTime};
     glm::vec3 firstHitNormal;
 
-    const auto minDisplacement{other.minP() - _maxP};
-    const auto maxDisplacement{other.maxP() - _minP};
+    const auto minDisplacement{other._minPoint - _maxPoint};
+    const auto maxDisplacement{other._maxPoint - _minPoint};
 
     for (const auto i : std::views::iota(0, 3)) {
         if (velocity[i] > 0.0f) {
@@ -60,3 +47,5 @@ auto minecraft::AlignedBox::sweep(const glm::vec3 &velocity,
     }
     return false;
 }
+
+} // namespace minecraft

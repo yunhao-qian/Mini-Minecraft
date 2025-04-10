@@ -4,10 +4,10 @@
 namespace minecraft {
 
 enum class MovementMode {
-    Fly,
-    Fall,
-    Walk,
-    Swim,
+    Fall = 0,
+    Fly = 1,
+    Swim = 2,
+    Walk = 3,
 };
 
 } // namespace minecraft

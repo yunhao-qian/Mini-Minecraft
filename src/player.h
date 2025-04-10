@@ -1,49 +1,113 @@
 #ifndef MINI_MINECRAFT_PLAYER_H
 #define MINI_MINECRAFT_PLAYER_H
 
-#include "aligned_box.h"
+#include "aligned_box_3d.h"
 #include "camera.h"
 #include "entity.h"
 #include "movement_mode.h"
 #include "player_info_display_data.h"
+#include "pose.h"
 #include "terrain.h"
+#include "terrain_chunk.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+
+#include <cmath>
 
 namespace minecraft {
 
 class Player : public Entity
 {
 public:
-    Player(const Pose &pose, const glm::vec3 &velocity, const glm::vec3 &acceleration);
+    Player(const Pose &pose);
 
-    auto setCameraViewportSize(const int width, const int height) -> void;
-    auto getSyncedCamera() -> const Camera &;
+    void resizeCameraViewport(const int width, const int height);
+    const Camera &getSyncedCamera();
 
-    auto movementMode() const -> MovementMode;
-    auto setMovementMode(const MovementMode mode) -> void;
+    const glm::quat &orientation() const;
 
-    auto desiredOrientation() const -> const glm::quat &;
-    auto setDesiredOrientation(const glm::quat &orientation) -> void;
+    const glm::quat &desiredOrientation() const;
+    void setDesiredOrientation(const glm::quat &orientation);
 
-    auto updatePhysics(const float dT, const Terrain &terrain) -> void;
+    AlignedBox3D boxCollider() const override;
 
-    auto createPlayerInfoDisplayData() const -> PlayerInfoDisplayData;
+    void updatePhysics(const float dT, const Terrain &terrain) override;
+
+    PlayerInfoDisplayData createPlayerInfoDisplayData() const;
 
 private:
-    auto boxCollider() const -> AlignedBox;
-
-    auto simulateWithTerrainCollisions(const float dT, const Terrain &terrain) -> void;
-
-    auto isInWater(const Terrain &terrain) const -> bool;
-    auto isCloseToGround(const Terrain &terrain) const -> bool;
-
     Camera _camera;
-    MovementMode _movementMode;
+    glm::quat _orientation;
     glm::quat _desiredOrientation;
-    glm::vec3 _previousAcceleration;
 };
+
+inline Player::Player(const Pose &pose)
+    : Entity{pose.position(),
+             glm::vec3{0.0f, 0.0f, 0.0f},
+             glm::vec3{0.0f, 0.0f, 0.0f},
+             MovementMode::Fly}
+    , _camera{Pose{}, 1280, 960}
+    , _orientation{pose.orientation()}
+    , _desiredOrientation{pose.orientation()}
+{}
+
+inline void Player::resizeCameraViewport(const int width, const int height)
+{
+    _camera.resizeViewport(width, height);
+}
+
+inline const Camera &Player::getSyncedCamera()
+{
+    Pose cameraPose{position() + glm::vec3{0.0f, 1.5f, 0.0f}};
+    cameraPose.setOrientation(_orientation);
+    _camera.setPose(cameraPose);
+    return _camera;
+}
+
+inline const glm::quat &Player::orientation() const
+{
+    return _orientation;
+}
+
+inline const glm::quat &Player::desiredOrientation() const
+{
+    return _desiredOrientation;
+}
+
+inline void Player::setDesiredOrientation(const glm::quat &orientation)
+{
+    _desiredOrientation = orientation;
+}
+
+inline AlignedBox3D Player::boxCollider() const
+{
+    return {
+        position() - glm::vec3{0.5f, 0.0f, 0.5f},
+        position() + glm::vec3{0.5f, 2.0f, 0.5f},
+    };
+}
+
+inline void Player::updatePhysics(const float dT, const Terrain &terrain)
+{
+    Entity::updatePhysics(dT, terrain);
+    const auto interpolation{1.0f - std::exp(-5.0f * dT)};
+    _orientation = glm::slerp(_orientation, _desiredOrientation, interpolation);
+}
+
+inline PlayerInfoDisplayData Player::createPlayerInfoDisplayData() const
+{
+    return {
+        .position{position()},
+        .velocity{velocity()},
+        .acceleration{previousAcceleration()},
+        .lookVector{_camera.pose().forward()},
+        .chunk{glm::ivec2{
+            glm::floor(glm::vec2{position().x, position().z}
+                       / glm::vec2{glm::ivec2{TerrainChunk::SizeX, TerrainChunk::SizeZ}})}},
+        .terrainZone = static_cast<int>(std::floor(position().y / 64.f)),
+    };
+}
 
 } // namespace minecraft
 

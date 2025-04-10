@@ -1,7 +1,7 @@
 #ifndef MINI_MINECRAFT_MAIN_WINDOW_H
 #define MINI_MINECRAFT_MAIN_WINDOW_H
 
-#include "gl_widget.h"
+#include "opengl_widget.h"
 
 #include <QMainWindow>
 
@@ -15,9 +15,9 @@ public:
     MainWindow(QWidget *const parent = nullptr);
 
 private:
-    GLWidget *_glWidget;
+    OpenGLWidget *_openGLWidget;
 };
 
 } // namespace minecraft
 
-#endif // MAINWINDOW_H
+#endif // MINI_MINECRAFT_MAIN_WINDOW_H

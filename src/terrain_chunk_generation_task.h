@@ -1,38 +1,37 @@
 #ifndef MINI_MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
 #define MINI_MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
 
-#include "int_pair_hash.h"
 #include "terrain_chunk.h"
+#include "terrain_streamer.h"
+
+#include <glm/glm.hpp>
 
 #include <QRunnable>
 
 #include <memory>
-#include <mutex>
-#include <unordered_set>
 #include <utility>
-#include <vector>
 
 namespace minecraft {
 
 class TerrainChunkGenerationTask : public QRunnable
 {
 public:
-    TerrainChunkGenerationTask(
-        std::unique_ptr<TerrainChunk> chunk,
-        std::mutex *const mutex,
-        std::unordered_set<std::pair<int, int>, IntPairHash> *const pendingChunks,
-        std::vector<std::unique_ptr<TerrainChunk>> *const finishedChunks);
+    TerrainChunkGenerationTask(TerrainStreamer *const streamer, std::unique_ptr<TerrainChunk> chunk);
 
-    auto run() -> void override;
+    void run() override;
 
 private:
-    auto generateColumn(const int localX, const int localZ) -> void;
+    void generateColumn(const glm::ivec2 localXZ);
 
+    TerrainStreamer *_streamer;
     std::unique_ptr<TerrainChunk> _chunk;
-    std::mutex *_mutex;
-    std::unordered_set<std::pair<int, int>, IntPairHash> *_pendingChunks;
-    std::vector<std::unique_ptr<TerrainChunk>> *_finishedChunks;
 };
+
+inline TerrainChunkGenerationTask::TerrainChunkGenerationTask(TerrainStreamer *const streamer,
+                                                              std::unique_ptr<TerrainChunk> chunk)
+    : _streamer{streamer}
+    , _chunk{std::move(chunk)}
+{}
 
 } // namespace minecraft
 

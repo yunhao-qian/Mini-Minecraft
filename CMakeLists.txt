@@ -28,53 +28,47 @@ FetchContent_MakeAvailable(glm)
 
 set(PROJECT_SOURCES
     src/main.cpp
+    src/aligned_box_3d.h
+    src/aligned_box_3d.cpp
+    src/array_texture_2d.h
+    src/array_texture_2d.cpp
+    src/block_face_generation_task.h
+    src/block_face_generation_task.cpp
     src/block_type.h
-    src/block_type.cpp
     src/camera.h
-    src/camera.cpp
     src/camera_controls_window.h
     src/camera_controls_window.cpp
-    src/aligned_box.h
-    src/aligned_box.cpp
     src/direction.h
     src/entity.h
     src/entity.cpp
     src/framebuffer.h
     src/framebuffer.cpp
-    src/gl_context.h
-    src/gl_context.cpp
-    src/gl_widget.h
-    src/gl_widget.cpp
-    src/int_pair_hash.h
-    src/int_pair_hash.cpp
+    src/instanced_renderer.h
+    src/ivec2_hash.h
     src/main_window.h
     src/main_window.cpp
     src/movement_mode.h
-    src/player.h
-    src/player.cpp
+    src/opengl_context.h
+    src/opengl_widget.h
+    src/opengl_widget.cpp
     src/player_controller.h
     src/player_controller.cpp
     src/player_info_display_data.h
     src/player_info_window.h
     src/player_info_window.cpp
     src/pose.h
-    src/pose.cpp
     src/scene.h
-    src/scene.cpp
     src/shader_program.h
     src/shader_program.cpp
     src/terrain.h
     src/terrain.cpp
     src/terrain_chunk.h
     src/terrain_chunk.cpp
-    src/terrain_chunk_draw_delegate.h
-    src/terrain_chunk_draw_delegate.cpp
     src/terrain_chunk_generation_task.h
     src/terrain_chunk_generation_task.cpp
     src/terrain_streamer.h
     src/terrain_streamer.cpp
-    src/vertex.h
-    src/vertex_array_helper.h
+    src/vertex_attribute.h
 )
 
 qt_add_executable(mini-minecraft
@@ -83,9 +77,9 @@ qt_add_executable(mini-minecraft
     resources.qrc
 )
 
-option(MINECRAFT_NO_DEBUG_GL_ERROR "Disable GLContext::debugGLError()" OFF)
-if (MINECRAFT_NO_DEBUG_GL_ERROR)
-    target_compile_definitions(mini-minecraft PRIVATE MINECRAFT_NO_DEBUG_GL_ERROR)
+option(MINI_MINECRAFT_OPENGL_NO_DEBUG_ERROR "Disable OpenGLContext::debugError()" OFF)
+if (MINI_MINECRAFT_OPENGL_NO_DEBUG_ERROR)
+    target_compile_definitions(mini-minecraft PRIVATE MINI_MINECRAFT_OPENGL_NO_DEBUG_ERROR)
 endif()
 
 target_link_libraries(mini-minecraft

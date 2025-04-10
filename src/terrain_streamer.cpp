@@ -5,8 +5,9 @@
 #include <QThreadPool>
 
 #include <algorithm>
-#include <cmath>
 #include <utility>
+
+namespace minecraft {
 
 namespace {
 
@@ -14,94 +15,110 @@ constexpr auto VisibleDistance{512.0f};
 constexpr auto GenerateDistance{640.0f};
 constexpr auto ReleaseDistance{768.0f};
 
-auto getChunkDistance(const glm::vec3 &position, const int minX, const int minZ) -> float
+float getChunkDistance(const glm::vec3 &position, const glm::ivec2 originXZ)
 {
-    using minecraft::TerrainChunk;
-
-    const auto minY{0};
-    const auto maxX{minX + TerrainChunk::SizeX};
-    const auto maxY{minY + TerrainChunk::SizeY};
-    const auto maxZ{minZ + TerrainChunk::SizeZ};
-
-    const auto distanceX{std::max(std::max(minX - position.x, position.x - maxX), 0.0f)};
-    const auto distanceY{std::max(std::max(minY - position.y, position.y - maxY), 0.0f)};
-    const auto distanceZ{std::max(std::max(minZ - position.z, position.z - maxZ), 0.0f)};
-
-    return std::sqrt(distanceX * distanceX + distanceY * distanceY + distanceZ * distanceZ);
+    const glm::vec2 positionXZ{position.x, position.z};
+    const glm::vec2 minXZ{originXZ};
+    const glm::vec2 maxXZ{originXZ + glm::ivec2{TerrainChunk::SizeX, TerrainChunk::SizeZ}};
+    const auto distancesPerAxis{glm::max(glm::max(minXZ - positionXZ, positionXZ - maxXZ), 0.0f)};
+    return glm::length(distancesPerAxis);
 }
 
 } // namespace
 
-minecraft::TerrainStreamer::TerrainStreamer(GLContext *const context, Terrain *const terrain)
-    : _context{context}
-    , _terrain{terrain}
-{}
-
-minecraft::TerrainStreamer::~TerrainStreamer()
+TerrainStreamer::UpdateResult TerrainStreamer::update(const glm::vec3 &cameraPosition)
 {
-    // TODO: This works only when TerrainStreamer is the only class using QThreadPool.
-    const auto threadPool{QThreadPool::globalInstance()};
-    threadPool->clear();
-    threadPool->waitForDone();
-}
+    const glm::vec2 cameraXZ{cameraPosition.x, cameraPosition.z};
+    const auto minOrigin{
+        TerrainChunk::alignToChunkOrigin(glm::ivec2{glm::floor(cameraXZ - GenerateDistance)})};
+    const auto maxOrigin{
+        TerrainChunk::alignToChunkOrigin(glm::ivec2{glm::floor(cameraXZ + GenerateDistance)})};
 
-auto minecraft::TerrainStreamer::update(const glm::vec3 &cameraPosition) -> void
-{
-    const glm::vec2 center2D{cameraPosition.x, cameraPosition.z};
-    const glm::ivec2 minPosition{glm::floor(center2D - GenerateDistance)};
-    const glm::ivec2 maxPosition{glm::floor(center2D + GenerateDistance)};
-    const auto minOrigin{TerrainChunk::alignToChunkOrigin(minPosition[0], minPosition[1])};
-    const auto maxOrigin{TerrainChunk::alignToChunkOrigin(maxPosition[0], maxPosition[1])};
-
-    std::vector<std::pair<float, std::pair<int, int>>> chunksToProcess;
+    std::vector<std::pair<glm::ivec2, float>> chunksWithDistances;
     {
-        std::lock_guard lock{_mutex};
+        const std::lock_guard lock{_mutex};
 
-        for (auto &chunk : _finishedChunks) {
+        // Set the chunks that have been generated.
+        for (auto &chunk : _readyChunks) {
             _terrain->setChunk(std::move(chunk));
+            // New chunks are invisible by default, so there is no need to mark them and their
+            // neighbors as dirty.
         }
-        _finishedChunks.clear();
+        _readyChunks.clear();
 
-        for (auto minX{minOrigin.first}; minX <= maxOrigin.first; minX += TerrainChunk::SizeX) {
-            for (auto minZ{minOrigin.second}; minZ <= maxOrigin.second;
-                 minZ += TerrainChunk::SizeZ) {
-                const auto distance{getChunkDistance(cameraPosition, minX, minZ)};
-                if (distance > GenerateDistance || _terrain->getChunk(minX, minZ) != nullptr
-                    || _pendingChunks.contains({minX, minZ})) {
+        for (auto originX{minOrigin[0]}; originX <= maxOrigin[0]; originX += TerrainChunk::SizeX) {
+            for (auto originZ{minOrigin[1]}; originZ <= maxOrigin[1];
+                 originZ += TerrainChunk::SizeZ) {
+                const glm::ivec2 originXZ{originX, originZ};
+
+                const auto distance{getChunkDistance(cameraPosition, originXZ)};
+                if (distance > GenerateDistance || _terrain->getChunk(originXZ) != nullptr
+                    || _pendingChunks.contains(originXZ)) {
+                    // Skip if:
+                    // - The chunk is too far away.
+                    // - The chunk has already been generated.
+                    // - The chunk is being worked on.
                     continue;
                 }
-                _pendingChunks.insert({minX, minZ});
-                chunksToProcess.push_back({distance, {minX, minZ}});
+
+                _pendingChunks.insert(originXZ);
+                chunksWithDistances.emplace_back(originXZ, distance);
             }
         }
     }
 
-    std::ranges::sort(chunksToProcess,
-                      [](const auto &a, const auto &b) { return a.first < b.first; });
-    for (const auto &[_, position] : chunksToProcess) {
+    // Sort the chunks by distance so that the closest chunks get queued first.
+    std::ranges::sort(chunksWithDistances,
+                      [](const auto &a, const auto &b) { return a.second < b.second; });
+
+    // Generate the chunks in worker threads.
+    for (const auto &[originXZ, _] : chunksWithDistances) {
         QThreadPool::globalInstance()->start(new TerrainChunkGenerationTask{
-            std::make_unique<TerrainChunk>(_context, position.first, position.second),
-            &_mutex,
-            &_pendingChunks,
-            &_finishedChunks,
+            this,
+            std::make_unique<TerrainChunk>(_context, originXZ),
         });
     }
 
-    _terrain->forEachChunk([&cameraPosition](TerrainChunk *const chunk) {
-        const auto distance{getChunkDistance(cameraPosition, chunk->minX(), chunk->minZ())};
+    UpdateResult result;
+    const auto prepareChunk{[&result](TerrainChunk *const chunk) {
+        const auto prepareDrawResult{chunk->prepareDraw()};
+        if (prepareDrawResult.hasOpaqueFaces) {
+            result.chunksWithOpaqueFaces.push_back(chunk);
+        }
+        if (prepareDrawResult.hasTranslucentFaces) {
+            result.chunksWithTranslucentFaces.push_back(chunk);
+        }
+    }};
+
+    _terrain->forEachChunk([&cameraPosition, &prepareChunk](TerrainChunk *const chunk) {
+        const auto distance{getChunkDistance(cameraPosition, chunk->originXZ())};
         if (distance <= VisibleDistance) {
+            // All chunks closer than VisibleDistance are visible.
             if (!chunk->isVisible()) {
                 chunk->setVisible(true);
                 chunk->markSelfAndNeighborsDirty();
             }
-        } else if (distance > GenerateDistance) {
+            prepareChunk(chunk);
+        } else if (distance <= GenerateDistance) {
+            // Do nothing for chunks between VisibleDistance and GenerateDistance. This introduces
+            // hysteresis to prevent flickering.
+            if (chunk->isVisible()) {
+                prepareChunk(chunk);
+            }
+        } else {
+            // All chunks farther than GenerateDistance are invisible.
             if (chunk->isVisible()) {
                 chunk->setVisible(false);
                 chunk->markSelfAndNeighborsDirty();
             }
+            // Release the renderer resources for chunks farther than ReleaseDistance.
             if (distance > ReleaseDistance) {
-                chunk->releaseDrawDelegate();
+                chunk->releaseRendererResources();
             }
         }
     });
+
+    return result;
 }
+
+} // namespace minecraft

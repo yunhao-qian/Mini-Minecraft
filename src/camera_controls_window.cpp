@@ -5,7 +5,9 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
-minecraft::CameraControlsWindow::CameraControlsWindow(QWidget *const parent)
+namespace minecraft {
+
+CameraControlsWindow::CameraControlsWindow(QWidget *const parent)
     : QWidget{parent}
 {
     setWindowTitle("Camera Controls");
@@ -47,3 +49,5 @@ minecraft::CameraControlsWindow::CameraControlsWindow(QWidget *const parent)
         mainLayout->addLayout(rightLayout);
     }
 }
+
+} // namespace minecraft

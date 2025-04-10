@@ -16,14 +16,14 @@ public:
     PlayerInfoWindow(QWidget *const parent = nullptr);
 
 public slots:
-    auto setPlayerInfo(const minecraft::PlayerInfoDisplayData &data) -> void;
+    void setPlayerInfo(const PlayerInfoDisplayData &data);
 
 signals:
-    auto visibleChanged(const bool visible) -> void;
+    void visibleChanged(const bool visible);
 
 protected:
-    auto showEvent(QShowEvent *const event) -> void override;
-    auto closeEvent(QCloseEvent *const event) -> void override;
+    void showEvent(QShowEvent *const event) override;
+    void closeEvent(QCloseEvent *const event) override;
 
 private:
     QLabel *_positionLabel;

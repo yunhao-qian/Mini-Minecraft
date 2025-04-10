@@ -1,36 +1,94 @@
 #ifndef MINI_MINECRAFT_FRAMEBUFFER_H
 #define MINI_MINECRAFT_FRAMEBUFFER_H
 
-#include "gl_context.h"
+#include "opengl_context.h"
 
 namespace minecraft {
 
 class Framebuffer
 {
 public:
-    Framebuffer(GLContext *const context);
+    Framebuffer(OpenGLContext *const context);
+    Framebuffer(const Framebuffer &) = delete;
+    Framebuffer(Framebuffer &&) = delete;
+
     ~Framebuffer();
 
-    auto width() const -> int;
-    auto height() const -> int;
-    auto setSize(const int width, const int height) -> void;
+    Framebuffer &operator=(const Framebuffer &) = delete;
+    Framebuffer &operator=(Framebuffer &&) = delete;
 
-    auto fbo() const -> GLuint;
-    auto colorTexture() const -> GLuint;
-    auto depthTexture() const -> GLuint;
+    int width() const;
+    int height() const;
+    void resizeViewport(const int width, const int height);
 
-    auto bind() -> void;
+    GLuint normalTexture() const;
+    GLuint albedoTexture() const;
+    GLuint depthTexture() const;
+
+    void bind();
 
 private:
-    auto destroy() -> void;
+    void releaseResources();
 
-    GLContext *_context;
+    GLuint generateAndAttachTexture(const GLint internalFormat,
+                                    const GLenum format,
+                                    const GLenum type,
+                                    const GLenum attachment);
+
+    OpenGLContext *_context;
     int _width;
     int _height;
     GLuint _fbo;
-    GLuint _colorTexture;
+    GLuint _normalTexture;
+    GLuint _albedoTexture;
     GLuint _depthTexture;
 };
+
+inline Framebuffer::Framebuffer(OpenGLContext *const context)
+    : _context{context}
+    , _width{0}
+    , _height{0}
+    , _fbo{0u}
+    , _normalTexture{0u}
+    , _albedoTexture{0u}
+    , _depthTexture{0u}
+{}
+
+inline Framebuffer::~Framebuffer()
+{
+    releaseResources();
+}
+
+inline int Framebuffer::width() const
+{
+    return _width;
+}
+
+inline int Framebuffer::height() const
+{
+    return _height;
+}
+
+inline GLuint Framebuffer::normalTexture() const
+{
+    return _normalTexture;
+}
+
+inline GLuint Framebuffer::albedoTexture() const
+{
+    return _albedoTexture;
+}
+
+inline GLuint Framebuffer::depthTexture() const
+{
+    return _depthTexture;
+}
+
+inline void Framebuffer::bind()
+{
+    _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
+    _context->debugError();
+}
 
 } // namespace minecraft
 

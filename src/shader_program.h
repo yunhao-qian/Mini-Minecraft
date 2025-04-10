@@ -1,14 +1,14 @@
 #ifndef MINI_MINECRAFT_SHADER_PROGRAM_H
 #define MINI_MINECRAFT_SHADER_PROGRAM_H
 
-#include "gl_context.h"
+#include "opengl_context.h"
 
 #include <glm/glm.hpp>
 
 #include <QString>
 
-#include <optional>
-#include <utility>
+#include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 namespace minecraft {
@@ -16,32 +16,79 @@ namespace minecraft {
 class ShaderProgram
 {
 public:
-    ShaderProgram(GLContext *const context);
+    ShaderProgram(OpenGLContext *const context);
+    ShaderProgram(const ShaderProgram &) = delete;
+    ShaderProgram(ShaderProgram &&) = delete;
+
     ~ShaderProgram();
 
-    auto create(const QString &vertexShaderPath,
-                const QString &fragmentShaderPath,
-                const std::vector<QString> &uniformNames) -> bool;
+    ShaderProgram &operator=(const ShaderProgram &) = delete;
+    ShaderProgram &operator=(ShaderProgram &&) = delete;
 
-    auto useProgram() const -> void;
+    void create(const std::vector<QString> &vertexShaderFileNames,
+                const std::vector<QString> &fragmentShaderFileNames,
+                const std::vector<QString> &uniformNames);
 
-    auto setUniform(const QString &name, const GLint value) const -> void;
-    auto setUniform(const QString &name, const GLfloat value) const -> void;
-    auto setUniform(const QString &name, const glm::vec2 &value) const -> void;
-    auto setUniform(const QString &name, const glm::vec3 &value) const -> void;
-    auto setUniform(const QString &name, const glm::mat4 &value) const -> void;
+    void use() const;
+
+    template<typename T>
+    void setUniform(const QString &name, const T &value) const;
 
 private:
-    auto compileShader(const GLuint shader, const QString &filePath) const -> bool;
+    template<typename T>
+    static constexpr auto DependentFalse{false};
 
-    auto findUniformLocation(const QString &name) const -> std::optional<GLuint>;
+    void compileShader(const GLuint shader, const std::vector<QString> &fileNames) const;
 
-    GLContext *_context;
-    GLuint _vertexShader;
-    GLuint _fragmentShader;
+    OpenGLContext *_context;
     GLuint _program;
-    std::vector<std::pair<QString, GLuint>> _uniformLocations;
+    std::unordered_map<QString, GLuint> _uniformLocations;
 };
+
+inline ShaderProgram::ShaderProgram(OpenGLContext *const context)
+    : _context{context}
+    , _program{0u}
+    , _uniformLocations{}
+{}
+
+inline ShaderProgram::~ShaderProgram()
+{
+    _context->glDeleteProgram(_program);
+    _context->debugError();
+}
+
+inline void ShaderProgram::use() const
+{
+    _context->glUseProgram(_program);
+    _context->debugError();
+}
+
+template<typename T>
+void ShaderProgram::setUniform(const QString &name, const T &value) const
+{
+    const auto it{_uniformLocations.find(name)};
+    if (it == _uniformLocations.end()) {
+        qWarning() << "Uniform" << name << "not found in shader program";
+        return;
+    }
+    const auto location{it->second};
+    if constexpr (std::is_same_v<T, GLint>) {
+        _context->glUniform1i(location, value);
+    } else if constexpr (std::is_same_v<T, GLfloat>) {
+        _context->glUniform1f(location, value);
+    } else if constexpr (std::is_same_v<T, glm::vec2>) {
+        _context->glUniform2f(location, value[0], value[1]);
+    } else if constexpr (std::is_same_v<T, glm::vec3>) {
+        _context->glUniform3f(location, value[0], value[1], value[2]);
+    } else if constexpr (std::is_same_v<T, glm::mat4>) {
+        _context->glUniformMatrix4fv(location, 1, GL_FALSE, &value[0][0]);
+    } else {
+        // Workaround for static_assert(false):
+        // https://en.cppreference.com/w/cpp/language/static_assert
+        static_assert(DependentFalse<T>, "Unsupported uniform type");
+    }
+    _context->debugError();
+}
 
 } // namespace minecraft
 

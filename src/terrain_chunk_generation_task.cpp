@@ -1,32 +1,43 @@
 #include "terrain_chunk_generation_task.h"
 
-#include <glm/glm.hpp>
+#include "block_face_generation_task.h"
+#include "block_type.h"
+
 #include <glm/gtc/noise.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 #include <numbers>
 #include <ranges>
 
+namespace minecraft {
+
 namespace {
 
-auto random2D(const glm::vec2 position) -> glm::vec2
+glm::vec2 random2D(const glm::vec2 position)
 {
-    return glm::fract(glm::sin(glm::vec2{glm::dot(position, glm::vec2{127.1f, 311.7f}),
-                                         glm::dot(position, glm::vec2{269.5f, 183.3f})})
+    return glm::fract(glm::sin(glm::vec2{
+                          glm::dot(position, glm::vec2{127.1f, 311.7f}),
+                          glm::dot(position, glm::vec2{269.5f, 183.3f}),
+                      })
                       * 43758.5453f);
 }
 
-auto worleyNoise(const glm::vec2 position) -> float
+float worleyNoise(const glm::vec2 position)
 {
     const auto floorPosition{glm::floor(position)};
-    auto d1{3.0f};
-    auto d2{3.0f};
+
+    auto d1{3.0f}; // Closest distance
+    auto d2{3.0f}; // Second closest distance
+
+    // Check the 3x3 grid of cells around the point.
     for (const auto dX : {-1.0f, 0.0f, 1.0f}) {
         for (const auto dZ : {-1.0f, 0.0f, 1.0f}) {
             auto neighborPosition{floorPosition};
             neighborPosition += glm::vec2{dX, dZ};
             neighborPosition += random2D(neighborPosition);
+
             const auto displacement{neighborPosition - position};
             const auto distance{glm::dot(displacement, displacement)};
             if (distance < d1) {
@@ -37,25 +48,33 @@ auto worleyNoise(const glm::vec2 position) -> float
             }
         }
     }
+
+    // The maximum difference between d1 and d2 is roughly sqrt(2).
     return (d2 - d1) / std::numbers::sqrt2_v<float>;
 }
 
-auto getGrasslandHeight(const glm::vec2 position) -> float
+float getGrasslandHeight(const glm::vec2 position)
 {
     const auto scaledPosition{position * 0.02f};
-    const auto perturbedPosition{
-        position
-        + 10.0f
-              * glm::vec2{glm::perlin(scaledPosition),
-                          glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f})}};
+
+    // Add smooth Perlin noise to the sampling coordinates to deform the straight lines in Worley
+    // noise.
+    const auto perturbedPosition{position
+                                 + 10.0f
+                                       * glm::vec2{
+                                           glm::perlin(scaledPosition),
+                                           glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f}),
+                                       }};
     const auto scaledPerturbedPosition{perturbedPosition * 0.01f};
+
+    // 1/3 of Perlin noise and 2/3 of Worley noise
     const auto noise{std::lerp(glm::perlin(scaledPerturbedPosition) * 0.5f + 0.5f,
                                worleyNoise(scaledPerturbedPosition),
                                1.0f / 3.0f)};
     return noise * 36.0f + 128.0f;
 }
 
-auto getMountainHeight(const glm::vec2 position) -> float
+float getMountainHeight(const glm::vec2 position)
 {
     auto total{0.0f};
     auto frequency{0.02f};
@@ -70,68 +89,66 @@ auto getMountainHeight(const glm::vec2 position) -> float
 
 } // namespace
 
-minecraft::TerrainChunkGenerationTask::TerrainChunkGenerationTask(
-    std::unique_ptr<TerrainChunk> chunk,
-    std::mutex *const mutex,
-    std::unordered_set<std::pair<int, int>, IntPairHash> *const pendingChunks,
-    std::vector<std::unique_ptr<TerrainChunk>> *const finishedChunks)
-    : _chunk{std::move(chunk)}
-    , _mutex{mutex}
-    , _pendingChunks{pendingChunks}
-    , _finishedChunks{finishedChunks}
-{}
-
-auto minecraft::TerrainChunkGenerationTask::run() -> void
+void TerrainChunkGenerationTask::run()
 {
-    for (const auto x : std::views::iota(0, TerrainChunk::SizeX)) {
-        for (const auto z : std::views::iota(0, TerrainChunk::SizeZ)) {
-            generateColumn(x, z);
+    for (const auto localX : std::views::iota(0, TerrainChunk::SizeX)) {
+        for (const auto localZ : std::views::iota(0, TerrainChunk::SizeZ)) {
+            generateColumn(glm::ivec2{localX, localZ});
         }
     }
     {
-        std::lock_guard lock{*_mutex};
-        _pendingChunks->erase({_chunk->minX(), _chunk->minZ()});
-        _finishedChunks->push_back(std::move(_chunk));
+        // After generating a new terrain chunk, we had better get its instance attributes ready.
+        // Otherwise, the chunk will spend a few additional frames to generate the attributes.
+        // This task can be a very large object, so we allocate it on the heap to avoid stack
+        // overflow errors.
+        const auto task{std::make_unique<BlockFaceGenerationTask>(_chunk.get())};
+        task->run();
     }
+    const std::lock_guard lock{_streamer->_mutex};
+    _streamer->_pendingChunks.erase(_chunk->originXZ());
+    _streamer->_readyChunks.push_back(std::move(_chunk));
 }
 
-auto minecraft::TerrainChunkGenerationTask::generateColumn(const int localX, const int localZ)
-    -> void
+void TerrainChunkGenerationTask::generateColumn(const glm::ivec2 localXZ)
 {
+    const auto localX{localXZ[0]};
+    const auto localZ{localXZ[1]};
+
     for (const auto y : std::views::iota(0, 128)) {
-        _chunk->setBlockLocal(localX, y, localZ, BlockType::Stone);
+        _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Stone);
     }
 
-    const glm::vec2 center{static_cast<float>(_chunk->minX() + localX) + 0.5f,
-                           static_cast<float>(_chunk->minZ() + localZ) + 0.5f};
+    const glm::vec2 centerXZ{glm::vec2{_chunk->originXZ() + localXZ} + 0.5f};
 
-    const auto biomeInterpolation{glm::smoothstep(0.2f, 0.6f, glm::perlin(center * 0.005f))};
+    const auto biomeInterpolation{glm::smoothstep(0.2f, 0.6f, glm::perlin(centerXZ * 0.005f))};
 
     const auto floatHeight{
-        std::lerp(getGrasslandHeight(center), getMountainHeight(center), biomeInterpolation)};
+        std::lerp(getGrasslandHeight(centerXZ), getMountainHeight(centerXZ), biomeInterpolation)};
     const auto intHeight{std::clamp(static_cast<int>(std::round(floatHeight)), 128, 256)};
 
     if (biomeInterpolation < 0.15f) {
         // Grassland biome
         for (const auto y : std::views::iota(128, intHeight)) {
-            _chunk->setBlockLocal(localX, y, localZ, BlockType::Dirt);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Dirt);
         }
         if (intHeight > 128) {
-            _chunk->setBlockLocal(localX, intHeight - 1, localZ, BlockType::Grass);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, intHeight - 1, localZ}, BlockType::Grass);
         }
     } else {
         // Mountain biome
         for (const auto y : std::views::iota(128, intHeight)) {
-            _chunk->setBlockLocal(localX, y, localZ, BlockType::Stone);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Stone);
         }
         if (intHeight > 200) {
-            _chunk->setBlockLocal(localX, intHeight - 1, localZ, BlockType::Snow);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, intHeight - 1, localZ}, BlockType::Snow);
         }
     }
 
     if (intHeight < 138) {
         for (const auto y : std::views::iota(intHeight, 138)) {
-            _chunk->setBlockLocal(localX, y, localZ, minecraft::BlockType::Water);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, minecraft::BlockType::Water);
         }
     }
 }
+
+} // namespace minecraft
