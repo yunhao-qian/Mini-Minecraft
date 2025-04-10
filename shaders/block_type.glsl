@@ -1,10 +1,11 @@
 const int BlockTypeAir = 0;
-const int BlockTypeDirt = 1;
-const int BlockTypeGrass = 2;
-const int BlockTypeLava = 3;
-const int BlockTypeSnow = 4;
-const int BlockTypeStone = 5;
-const int BlockTypeWater = 6;
+const int BlockTypeBedrock = 1;
+const int BlockTypeDirt = 2;
+const int BlockTypeGrass = 3;
+const int BlockTypeLava = 4;
+const int BlockTypeSnow = 5;
+const int BlockTypeStone = 6;
+const int BlockTypeWater = 7;
 
 float blockTypeToFloat(int blockType)
 {

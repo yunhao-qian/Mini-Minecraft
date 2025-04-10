@@ -2,6 +2,7 @@
 
 #include "block_face_generation_task.h"
 #include "block_type.h"
+#include "glm/common.hpp"
 
 #include <glm/gtc/noise.hpp>
 
@@ -38,8 +39,7 @@ float worleyNoise(const glm::vec2 position)
             neighborPosition += glm::vec2{dX, dZ};
             neighborPosition += random2D(neighborPosition);
 
-            const auto displacement{neighborPosition - position};
-            const auto distance{glm::dot(displacement, displacement)};
+            const auto distance{glm::distance(position, neighborPosition)};
             if (distance < d1) {
                 d2 = d1;
                 d1 = distance;
@@ -53,38 +53,63 @@ float worleyNoise(const glm::vec2 position)
     return (d2 - d1) / std::numbers::sqrt2_v<float>;
 }
 
+float getPlainHeight(const glm::vec2 position)
+{
+    return 140.0f + 3.0f * glm::perlin(position * 0.0005f);
+}
+
 float getGrasslandHeight(const glm::vec2 position)
 {
-    const auto scaledPosition{position * 0.02f};
-
+    const auto scaledPosition{position * 0.015f};
     // Add smooth Perlin noise to the sampling coordinates to deform the straight lines in Worley
     // noise.
-    const auto perturbedPosition{position
-                                 + 10.0f
-                                       * glm::vec2{
-                                           glm::perlin(scaledPosition),
-                                           glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f}),
-                                       }};
-    const auto scaledPerturbedPosition{perturbedPosition * 0.01f};
-
-    // 1/3 of Perlin noise and 2/3 of Worley noise
-    const auto noise{std::lerp(glm::perlin(scaledPerturbedPosition) * 0.5f + 0.5f,
-                               worleyNoise(scaledPerturbedPosition),
-                               1.0f / 3.0f)};
-    return noise * 36.0f + 128.0f;
+    const glm::vec2 perturbation{
+        glm::perlin(scaledPosition),
+        glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f}),
+    };
+    const auto perturbedPosition{position + 40.0f * perturbation};
+    const auto scaledPerturbedPosition{perturbedPosition * 0.006f};
+    const auto perlin{glm::perlin(scaledPerturbedPosition) * 0.5f + 0.5f};
+    const auto worley{worleyNoise(scaledPerturbedPosition)};
+    // 3/4 of Perlin noise and 1/4 of Worley noise
+    const auto mixedNoise{std::lerp(perlin, worley, 0.25f)};
+    return 130.0f + 32.0f * mixedNoise;
 }
 
 float getMountainHeight(const glm::vec2 position)
 {
     auto total{0.0f};
-    auto frequency{0.02f};
+    auto frequency{0.008f};
     auto amplitude{0.5f};
     for ([[maybe_unused]] const auto _ : std::views::iota(0, 8)) {
         total += std::abs(glm::perlin(position * frequency) * amplitude);
-        frequency *= 2.0f;
+        frequency *= 2.5f;
         amplitude *= 0.4f;
     }
-    return total * 96.0f + 160.0f;
+    return 128.0f + 176.0f * total;
+}
+
+float getRiverHeight(const glm::vec2 position)
+{
+    const auto scaledPosition{position * 0.05f};
+    const glm::vec2 perturbation{
+        glm::perlin(scaledPosition),
+        glm::perlin(scaledPosition + glm::vec2{1.5f, 6.7f}),
+    };
+    const auto perturbedPosition{position + 10.0f * perturbation};
+    const auto scaledPerturbedPosition{perturbedPosition * 0.003f};
+    const auto perlin{glm::perlin(scaledPerturbedPosition)};
+    return 132.0f + 8.0f * glm::smoothstep(0.02f, 0.1f, std::abs(perlin));
+}
+
+float getMaxGrassHeight(const glm::vec2 position)
+{
+    return 160.0f + 8.0f * glm::perlin(position * 0.0005f);
+}
+
+float getSnowLineHeight(const glm::vec2 position)
+{
+    return 200.0f + 6.0f * glm::perlin(position * 0.04f);
 }
 
 } // namespace
@@ -113,40 +138,81 @@ void TerrainChunkGenerationTask::generateColumn(const glm::ivec2 localXZ)
 {
     const auto localX{localXZ[0]};
     const auto localZ{localXZ[1]};
+    const auto centerXZ{glm::vec2{_chunk->originXZ() + localXZ} + 0.5f};
 
-    for (const auto y : std::views::iota(0, 128)) {
-        _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Stone);
+    // Determine the height based on interpolating between different biomes.
+    const auto biomeValue{glm::perlin(centerXZ * 0.002f) * 0.5f + 0.5f};
+    float floatHeight;
+    if (const auto grasslandThreshold(0.5f + 0.05f * glm::perlin(centerXZ * 0.008f));
+        biomeValue < grasslandThreshold) {
+        // Interpolation between plain and grassland
+        auto interpolation{biomeValue / grasslandThreshold};
+        interpolation = glm::smoothstep(0.2f, 0.8f, interpolation);
+        const auto plainHeight{getPlainHeight(centerXZ)};
+        const auto grasslandHeight{getGrasslandHeight(centerXZ)};
+        floatHeight = std::lerp(plainHeight, grasslandHeight, interpolation);
+    } else {
+        // Interpolation between grassland and mountain
+        auto interpolation{(biomeValue - grasslandThreshold) / (1.0f - grasslandThreshold)};
+        interpolation = glm::smoothstep(0.2f, 0.8f, interpolation);
+        const auto grasslandHeight{getGrasslandHeight(centerXZ)};
+        const auto mountainHeight{getMountainHeight(centerXZ)};
+        floatHeight = std::lerp(grasslandHeight, mountainHeight, interpolation);
     }
 
-    const glm::vec2 centerXZ{glm::vec2{_chunk->originXZ() + localXZ} + 0.5f};
+    // Carve the terrain by rivers.
+    const auto riverHeight{getRiverHeight(centerXZ)};
+    float riverWeight = 1.0f - glm::smoothstep(0.6f, 0.9f, biomeValue);
+    riverWeight *= 1.0f - glm::smoothstep(136.0f, 140.0f, riverHeight);
+    floatHeight = std::lerp(floatHeight, riverHeight, riverWeight);
 
-    const auto biomeInterpolation{glm::smoothstep(0.2f, 0.6f, glm::perlin(centerXZ * 0.005f))};
-
-    const auto floatHeight{
-        std::lerp(getGrasslandHeight(centerXZ), getMountainHeight(centerXZ), biomeInterpolation)};
+    // Determine the final height of the terrain.
     const auto intHeight{std::clamp(static_cast<int>(std::round(floatHeight)), 128, 256)};
 
-    if (biomeInterpolation < 0.15f) {
-        // Grassland biome
+    _chunk->setBlockAtLocal(glm::ivec3(localX, 0, localZ), BlockType::Bedrock);
+
+    // y = 1, ..., 127 is the stone layer with caves.
+    for (const auto y : std::views::iota(1, 128)) {
+        // Cave generation is based on Perlin noise.
+        const glm::vec3 centerPosition{centerXZ[0], static_cast<float>(y) + 0.5f, centerXZ[1]};
+        const auto noise{glm::perlin(centerPosition * 0.03f)};
+
+        BlockType block;
+        if (noise >= 0.0f) {
+            block = BlockType::Stone;
+        } else if (y < 25) {
+            block = BlockType::Lava;
+        } else {
+            block = BlockType::Air;
+        }
+
+        _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, block);
+    }
+
+    const glm::ivec3 topPosition{localX, intHeight - 1, localZ};
+
+    if (floatHeight < getMaxGrassHeight(centerXZ)) {
+        // Plain or grassland
         for (const auto y : std::views::iota(128, intHeight)) {
             _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Dirt);
         }
-        if (intHeight > 128) {
-            _chunk->setBlockAtLocal(glm::ivec3{localX, intHeight - 1, localZ}, BlockType::Grass);
+        if (intHeight > 136) {
+            _chunk->setBlockAtLocal(topPosition, BlockType::Grass);
         }
     } else {
-        // Mountain biome
+        // Mountain
         for (const auto y : std::views::iota(128, intHeight)) {
             _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Stone);
         }
-        if (intHeight > 200) {
-            _chunk->setBlockAtLocal(glm::ivec3{localX, intHeight - 1, localZ}, BlockType::Snow);
+        if (floatHeight > getSnowLineHeight(centerXZ)) {
+            _chunk->setBlockAtLocal(topPosition, BlockType::Snow);
         }
     }
 
     if (intHeight < 138) {
+        // Add water
         for (const auto y : std::views::iota(intHeight, 138)) {
-            _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, minecraft::BlockType::Water);
+            _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Water);
         }
     }
 }

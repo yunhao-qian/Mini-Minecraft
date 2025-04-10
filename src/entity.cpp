@@ -34,7 +34,7 @@ void Entity::updatePhysics(const float dT, const Terrain &terrain)
             if (block == BlockType::Water) {
                 decayFactor = 2.0f; // Water drag
             } else if (block == BlockType::Lava) {
-                decayFactor = 8.0f; // Lava drag
+                decayFactor = 4.0f; // Lava drag
             } else {
                 decayFactor = 0.1f; // Air drag
             }

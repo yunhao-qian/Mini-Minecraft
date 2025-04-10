@@ -124,6 +124,9 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
         case BlockType::Dirt:
             textureRowColumn = {0, 2};
             break;
+        case BlockType::Bedrock:
+            textureRowColumn = {1, 1};
+            break;
         case BlockType::Grass:
             if (Direction{faceIndex} == Direction::PositiveY) {
                 textureRowColumn = {2, 8};

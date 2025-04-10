@@ -61,6 +61,10 @@ bool rayMarch(const Terrain &terrain,
 
 BlockType determineNewBlockType(const Terrain &terrain, const glm::ivec3 &position)
 {
+    if (terrain.getBlockAtGlobal(position) == BlockType::Bedrock) {
+        // Bedrock cannot be modified.
+        return BlockType::Bedrock;
+    }
     // If the block is surrounded by water or lava, return that type. Otherwise, return air.
     auto hasWater{false};
     auto hasLava{false};
