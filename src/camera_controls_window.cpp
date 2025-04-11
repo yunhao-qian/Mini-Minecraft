@@ -5,6 +5,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
+#include <initializer_list>
+
 namespace minecraft {
 
 CameraControlsWindow::CameraControlsWindow(QWidget *const parent)

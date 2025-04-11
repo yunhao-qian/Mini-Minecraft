@@ -27,6 +27,8 @@ public:
 
     const glm::mat4 &projectionMatrix() const;
 
+    glm::mat4 getDirectionalLightShadowViewProjectionMatrix(const glm::vec3 &direction) const;
+
 private:
     void updateProjectionMatrix();
 

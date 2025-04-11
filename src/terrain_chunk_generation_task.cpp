@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <mutex>
 #include <numbers>
 #include <ranges>
@@ -29,8 +30,8 @@ float worleyNoise(const glm::vec2 position)
 {
     const auto floorPosition{glm::floor(position)};
 
-    auto d1{3.0f}; // Closest distance
-    auto d2{3.0f}; // Second closest distance
+    auto distance1{3.0f}; // Closest distance
+    auto distance2{3.0f}; // Second closest distance
 
     // Check the 3x3 grid of cells around the point.
     for (const auto dX : {-1.0f, 0.0f, 1.0f}) {
@@ -40,17 +41,17 @@ float worleyNoise(const glm::vec2 position)
             neighborPosition += random2D(neighborPosition);
 
             const auto distance{glm::distance(position, neighborPosition)};
-            if (distance < d1) {
-                d2 = d1;
-                d1 = distance;
-            } else if (distance < d2) {
-                d2 = distance;
+            if (distance < distance1) {
+                distance2 = distance1;
+                distance1 = distance;
+            } else if (distance < distance2) {
+                distance2 = distance;
             }
         }
     }
 
     // The maximum difference between d1 and d2 is roughly sqrt(2).
-    return (d2 - d1) / std::numbers::sqrt2_v<float>;
+    return (distance2 - distance1) / std::numbers::sqrt2_v<float>;
 }
 
 float getPlainHeight(const glm::vec2 position)

@@ -54,10 +54,12 @@ private:
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
 
+    ShaderProgram _shadowDepthProgram;
     ShaderProgram _geometryProgram;
     ShaderProgram _lightingProgram;
     ArrayTexture2D _colorTexture;
     ArrayTexture2D _normalTexture;
+    Framebuffer _shadowDepthFramebuffer;
     Framebuffer _opaqueGeometryFramebuffer;
     Framebuffer _translucentGeometryFramebuffer;
 

@@ -18,12 +18,14 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _scene{}
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
+    , _shadowDepthProgram{this}
     , _geometryProgram{this}
     , _lightingProgram{this}
     , _colorTexture{this}
     , _normalTexture{this}
-    , _opaqueGeometryFramebuffer{this}
-    , _translucentGeometryFramebuffer{this}
+    , _shadowDepthFramebuffer{this, true}
+    , _opaqueGeometryFramebuffer{this, false}
+    , _translucentGeometryFramebuffer{this, false}
     , _lightingVAO{0u}
 {
     // Allows the widget to accept focus for keyboard input.
@@ -56,7 +58,13 @@ void OpenGLWidget::initializeGL()
     // Blending is disabled by default. We do not need it because we will composite the opaque and
     // translucent contents manually.
 
-    _geometryProgram.create({":/shaders/block_type.glsl", ":/shaders/geometry.vert.glsl"},
+    _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
+                               {":/shaders/shadow_depth.frag.glsl"},
+                               {"u_shadowViewProjectionMatrix"});
+
+    _geometryProgram.create({":/shaders/block_type.glsl",
+                             ":/shaders/block_face.glsl",
+                             ":/shaders/geometry.vert.glsl"},
                             {":/shaders/block_type.glsl", ":/shaders/geometry.frag.glsl"},
                             {"u_viewProjectionMatrix",
                              "u_time",
@@ -68,6 +76,8 @@ void OpenGLWidget::initializeGL()
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
                             {"u_cameraPosition",
                              "u_viewProjectionMatrixInverse",
+                             "u_shadowViewProjectionMatrix",
+                             "u_shadowDepthTexture",
                              "u_opaqueNormalTexture",
                              "u_opaqueAlbedoTexture",
                              "u_opaqueDepthTexture",
@@ -77,6 +87,9 @@ void OpenGLWidget::initializeGL()
 
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
+
+    // The shadow map framebuffer has a fixed size and does not resize with the viewport.
+    _shadowDepthFramebuffer.resizeViewport(2048, 2048);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -92,12 +105,13 @@ void OpenGLWidget::initializeGL()
     _geometryProgram.setUniform("u_normalTexture", 1);
 
     _lightingProgram.use();
-    _lightingProgram.setUniform("u_opaqueNormalTexture", 2);
-    _lightingProgram.setUniform("u_opaqueAlbedoTexture", 3);
-    _lightingProgram.setUniform("u_opaqueDepthTexture", 4);
-    _lightingProgram.setUniform("u_translucentNormalTexture", 5);
-    _lightingProgram.setUniform("u_translucentAlbedoTexture", 6);
-    _lightingProgram.setUniform("u_translucentDepthTexture", 7);
+    _lightingProgram.setUniform("u_shadowDepthTexture", 2);
+    _lightingProgram.setUniform("u_opaqueNormalTexture", 3);
+    _lightingProgram.setUniform("u_opaqueAlbedoTexture", 4);
+    _lightingProgram.setUniform("u_opaqueDepthTexture", 5);
+    _lightingProgram.setUniform("u_translucentNormalTexture", 6);
+    _lightingProgram.setUniform("u_translucentAlbedoTexture", 7);
+    _lightingProgram.setUniform("u_translucentDepthTexture", 8);
 
     // The lighting pass does not need any vertex, index, or instance data, but we need a dummy VAO
     // for it.
@@ -107,11 +121,14 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
+    glm::mat4 shadowViewProjectionMatrix;
     glm::mat4 viewProjectionMatrix;
     glm::vec3 cameraPosition;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
+        shadowViewProjectionMatrix = camera.getDirectionalLightShadowViewProjectionMatrix(
+            glm::vec3{0.5f, 1.0f, 0.75f});
         viewProjectionMatrix = camera.projectionMatrix() * camera.pose().viewMatrix();
         cameraPosition = camera.pose().position();
     }
@@ -119,14 +136,24 @@ void OpenGLWidget::paintGL()
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
 
-    _geometryProgram.use();
-    _geometryProgram.setUniform("u_viewProjectionMatrix", viewProjectionMatrix);
-    _geometryProgram.setUniform("u_time", time);
-    _geometryProgram.setUniform("u_cameraPosition", cameraPosition);
-
     {
         const std::lock_guard lock{_scene.terrainMutex()};
         const auto updateResult{_terrainStreamer.update(cameraPosition)};
+
+        _shadowDepthProgram.use();
+        _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
+
+        _shadowDepthFramebuffer.bind();
+        glClear(GL_DEPTH_BUFFER_BIT);
+        debugError();
+        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
+            chunk->drawOpaque();
+        }
+
+        _geometryProgram.use();
+        _geometryProgram.setUniform("u_viewProjectionMatrix", viewProjectionMatrix);
+        _geometryProgram.setUniform("u_time", time);
+        _geometryProgram.setUniform("u_cameraPosition", cameraPosition);
 
         _opaqueGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -144,17 +171,19 @@ void OpenGLWidget::paintGL()
     }
 
     bindTextures({
-        {GL_TEXTURE2, _opaqueGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE3, _opaqueGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE4, _opaqueGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE5, _translucentGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE6, _translucentGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE7, _translucentGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE2, _shadowDepthFramebuffer.depthTexture()},
+        {GL_TEXTURE3, _opaqueGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE4, _opaqueGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE5, _opaqueGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE6, _translucentGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE7, _translucentGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE8, _translucentGeometryFramebuffer.depthTexture()},
     });
 
     _lightingProgram.use();
     _lightingProgram.setUniform("u_cameraPosition", cameraPosition);
     _lightingProgram.setUniform("u_viewProjectionMatrixInverse", glm::inverse(viewProjectionMatrix));
+    _lightingProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     debugError();
@@ -165,8 +194,8 @@ void OpenGLWidget::paintGL()
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     debugError();
 
-    // These textures are written to in the geometry passes, so they should be unbound after the
-    // lighting pass to avoid potential conflicts.
+    // These textures are written to in the shadow depth and geometry passes, so they should be
+    // unbound after the lighting pass to avoid potential conflicts.
     bindTextures({
         {GL_TEXTURE2, 0u},
         {GL_TEXTURE3, 0u},
@@ -174,6 +203,7 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE5, 0u},
         {GL_TEXTURE6, 0u},
         {GL_TEXTURE7, 0u},
+        {GL_TEXTURE8, 0u},
     });
 }
 

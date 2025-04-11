@@ -2,7 +2,7 @@ uniform vec3 u_cameraPosition;
 uniform sampler2DArray u_colorTexture;
 uniform sampler2DArray u_normalTexture;
 
-in vec3 v_worldPosition;
+in vec3 v_worldSpacePosition;
 flat in int v_textureIndex;
 in vec2 v_textureCoords;
 flat in vec3 v_tangent;
@@ -34,7 +34,7 @@ void main()
 
     // The medium types of the front and back faces may differ, so we determine the actual medium
     // type from the camera's perspective.
-    bool isFrontFace = dot(v_normal, u_cameraPosition - v_worldPosition) > 0.0;
+    bool isFrontFace = dot(v_normal, u_cameraPosition - v_worldSpacePosition) > 0.0;
     int actualMediumType;
     if (isFrontFace) {
         actualMediumType = v_mediumType;

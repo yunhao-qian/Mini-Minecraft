@@ -1,5 +1,7 @@
 #include "framebuffer.h"
 
+#include <initializer_list>
+
 namespace minecraft {
 
 void Framebuffer::resizeViewport(const int width, const int height)
@@ -17,26 +19,26 @@ void Framebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
 
     // Use higher precisions for the normal and depth textures.
-    _normalTexture = generateAndAttachTexture(GL_RGBA16F,
-                                              GL_RGBA,
-                                              GL_HALF_FLOAT,
-                                              GL_COLOR_ATTACHMENT0);
-    _albedoTexture = generateAndAttachTexture(GL_RGBA8,
-                                              GL_RGBA,
-                                              GL_UNSIGNED_BYTE,
-                                              GL_COLOR_ATTACHMENT1);
-    // Use float32 for the depth texture because we may need to recover accurate world positions
-    // from the depth values. This saves the need for a separate position texture.
-    _depthTexture = generateAndAttachTexture(GL_DEPTH_COMPONENT32F,
-                                             GL_DEPTH_COMPONENT,
-                                             GL_FLOAT,
-                                             GL_DEPTH_ATTACHMENT);
-
-    {
+    if (!_depthOnly) {
+        _normalTexture = generateAndAttachTexture(GL_RGBA16F,
+                                                  GL_RGBA,
+                                                  GL_HALF_FLOAT,
+                                                  GL_COLOR_ATTACHMENT0);
+        _albedoTexture = generateAndAttachTexture(GL_RGBA8,
+                                                  GL_RGBA,
+                                                  GL_UNSIGNED_BYTE,
+                                                  GL_COLOR_ATTACHMENT1);
         const GLenum drawBuffers[2]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
         _context->glDrawBuffers(2, drawBuffers);
         _context->debugError();
     }
+
+    // Use float32 for the depth texture because we may need to recover accurate world-space
+    // positions from the depth values. This saves the need for a separate position texture.
+    _depthTexture = generateAndAttachTexture(GL_DEPTH_COMPONENT32F,
+                                             GL_DEPTH_COMPONENT,
+                                             GL_FLOAT,
+                                             GL_DEPTH_ATTACHMENT);
 
     {
         const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};

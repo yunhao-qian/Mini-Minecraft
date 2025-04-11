@@ -4,6 +4,7 @@
 #include "movement_mode.h"
 #include "pose.h"
 
+#include <initializer_list>
 #include <ranges>
 
 namespace minecraft {
@@ -68,11 +69,13 @@ BlockType determineNewBlockType(const Terrain &terrain, const glm::ivec3 &positi
     // If the block is surrounded by water or lava, return that type. Otherwise, return air.
     auto hasWater{false};
     auto hasLava{false};
-    for (const auto &offset : {glm::ivec3{1, 0, 0},
-                               glm::ivec3{-1, 0, 0},
-                               glm::ivec3{0, 1, 0},
-                               glm::ivec3{0, 0, 1},
-                               glm::ivec3{0, 0, -1}}) {
+    for (const auto &offset : {
+             glm::ivec3{1, 0, 0},
+             glm::ivec3{-1, 0, 0},
+             glm::ivec3{0, 1, 0},
+             glm::ivec3{0, 0, 1},
+             glm::ivec3{0, 0, -1},
+         }) {
         const auto neighborBlock{terrain.getBlockAtGlobal(position + offset)};
         if (neighborBlock == BlockType::Water) {
             hasWater = true;

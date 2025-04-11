@@ -1,5 +1,7 @@
 uniform vec3 u_cameraPosition;
 uniform mat4 u_viewProjectionMatrixInverse;
+uniform mat4 u_shadowViewProjectionMatrix;
+uniform sampler2D u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
 uniform sampler2D u_opaqueDepthTexture;
@@ -17,7 +19,7 @@ struct FragmentAttributes
     int mediumType;
     vec4 albedo;
     float screenSpaceDepth;
-    vec3 worldPosition;
+    vec3 worldSpacePosition;
     float worldSpaceDepth;
 };
 
@@ -37,19 +39,30 @@ FragmentAttributes getFragmentAttributes(sampler2D normalTexture,
         vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0,
                                       attributes.screenSpaceDepth * 2.0 - 1.0,
                                       1.0);
-        vec4 worldPosition = u_viewProjectionMatrixInverse * clipSpacePosition;
-        attributes.worldPosition = worldPosition.xyz / worldPosition.w;
+        vec4 worldSpacePosition = u_viewProjectionMatrixInverse * clipSpacePosition;
+        attributes.worldSpacePosition = worldSpacePosition.xyz / worldSpacePosition.w;
     }
-    attributes.worldSpaceDepth = distance(attributes.worldPosition, u_cameraPosition);
+    attributes.worldSpaceDepth = distance(attributes.worldSpacePosition, u_cameraPosition);
     return attributes;
 }
 
 const vec3 LightDirection = normalize(vec3(0.5, 1.0, 0.75));
 
-float getLightIntensity(vec3 normal)
+float getLightIntensity(vec3 normal, vec3 worldSpacePosition)
 {
     float diffuseTerm = max(dot(normal, LightDirection), 0.0);
     float ambientTerm = 0.2;
+
+    vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrix * vec4(worldSpacePosition, 1.0);
+    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz / shadowClipSpacePosition.w * 0.5
+                                     + 0.5;
+    float shadowDepth = texture(u_shadowDepthTexture, shadowScreenSpacePosition.xy).r;
+    if (all(greaterThanEqual(shadowScreenSpacePosition.xy, vec2(0.0, 0.0)))
+        && all(lessThanEqual(shadowScreenSpacePosition.xy, vec2(1.0, 1.0))) && shadowDepth < 1.0
+        && shadowScreenSpacePosition.z > shadowDepth) {
+        diffuseTerm = 0.0;
+    }
+
     return diffuseTerm + ambientTerm;
 }
 
@@ -90,7 +103,8 @@ void main()
         farColor = SkyColor;
         farMediumType = BlockTypeAir;
     } else {
-        farColor = opaqueAttributes.albedo.rgb * getLightIntensity(opaqueAttributes.normal);
+        farColor = opaqueAttributes.albedo.rgb
+                   * getLightIntensity(opaqueAttributes.normal, opaqueAttributes.worldSpacePosition);
         farMediumType = opaqueAttributes.mediumType;
     }
 
@@ -103,7 +117,9 @@ void main()
         nearMediumType = BlockTypeAir;
     } else {
         nearDepth = translucentAttributes.worldSpaceDepth;
-        nearColor = translucentAttributes.albedo * getLightIntensity(translucentAttributes.normal);
+        nearColor = translucentAttributes.albedo
+                    * getLightIntensity(translucentAttributes.normal,
+                                        translucentAttributes.worldSpacePosition);
         nearMediumType = translucentAttributes.mediumType;
     }
 

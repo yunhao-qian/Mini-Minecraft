@@ -8,7 +8,7 @@ namespace minecraft {
 class Framebuffer
 {
 public:
-    Framebuffer(OpenGLContext *const context);
+    Framebuffer(OpenGLContext *const context, const bool depthOnly);
     Framebuffer(const Framebuffer &) = delete;
     Framebuffer(Framebuffer &&) = delete;
 
@@ -36,6 +36,7 @@ private:
                                     const GLenum attachment);
 
     OpenGLContext *_context;
+    bool _depthOnly;
     int _width;
     int _height;
     GLuint _fbo;
@@ -44,8 +45,9 @@ private:
     GLuint _depthTexture;
 };
 
-inline Framebuffer::Framebuffer(OpenGLContext *const context)
+inline Framebuffer::Framebuffer(OpenGLContext *const context, const bool depthOnly)
     : _context{context}
+    , _depthOnly{depthOnly}
     , _width{0}
     , _height{0}
     , _fbo{0u}
