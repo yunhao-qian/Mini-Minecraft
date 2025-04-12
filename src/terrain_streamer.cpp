@@ -11,9 +11,9 @@ namespace minecraft {
 
 namespace {
 
-constexpr auto VisibleDistance{512.0f};
-constexpr auto GenerateDistance{640.0f};
-constexpr auto ReleaseDistance{768.0f};
+constexpr auto VisibleDistance{256.0f};
+constexpr auto GenerateDistance{320.0f};
+constexpr auto ReleaseDistance{384.0f};
 
 float getChunkDistance(const glm::vec3 &position, const glm::ivec2 originXZ)
 {

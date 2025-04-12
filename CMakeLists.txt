@@ -36,7 +36,6 @@ set(PROJECT_SOURCES
     src/block_face_generation_task.cpp
     src/block_type.h
     src/camera.h
-    src/camera.cpp
     src/camera_controls_window.h
     src/camera_controls_window.cpp
     src/direction.h
@@ -61,6 +60,8 @@ set(PROJECT_SOURCES
     src/scene.h
     src/shader_program.h
     src/shader_program.cpp
+    src/shadow_map_camera.h
+    src/shadow_map_camera.cpp
     src/shadow_map_framebuffer.h
     src/shadow_map_framebuffer.cpp
     src/terrain.h

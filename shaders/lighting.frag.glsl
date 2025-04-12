@@ -1,7 +1,9 @@
+const int NumShadowMapCascades = 4;
+
 uniform mat4 u_viewMatrixInverse;
 uniform mat4 u_projectionMatrixInverse;
-uniform mat4 u_shadowViewMatrix;
-uniform mat4 u_shadowViewProjectionMatrix;
+uniform mat4 u_shadowViewMatrices[NumShadowMapCascades];
+uniform mat4 u_shadowProjectionMatrices[NumShadowMapCascades];
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
@@ -45,22 +47,35 @@ FragmentAttributes getFragmentAttributes(sampler2D normalTexture,
     return attributes;
 }
 
-const vec3 LightDirection = normalize(vec3(0.5, 1.0, 0.75));
+const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
+const float CascadeBiases[NumShadowMapCascades] = float[](0.004, 0.02, 0.1, 0.5);
 
 float getLightIntensity(vec3 normal, vec3 worldSpacePosition)
 {
     float diffuseTerm = max(dot(normal, LightDirection), 0.0);
     float ambientTerm = 0.2;
 
-    float shadowViewSpaceDepth = -(u_shadowViewMatrix * vec4(worldSpacePosition, 1.0)).z;
-    vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrix * vec4(worldSpacePosition, 1.0);
-    vec2 shadowScreenSpacePosition = shadowClipSpacePosition.xy / shadowClipSpacePosition.w * 0.5
-                                     + 0.5;
-    float shadowDepth = texture(u_shadowDepthTexture, vec3(shadowScreenSpacePosition, 0.0)).r;
-    if (all(greaterThanEqual(shadowScreenSpacePosition, vec2(0.0, 0.0)))
-        && all(lessThanEqual(shadowScreenSpacePosition, vec2(1.0, 1.0))) && shadowDepth != 0.0
-        && shadowViewSpaceDepth >= shadowDepth + 0.1) {
-        diffuseTerm = 0.0;
+    for (int cascadeIndex = 0; cascadeIndex < NumShadowMapCascades; ++cascadeIndex) {
+        vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex]
+                                       * vec4(worldSpacePosition, 1.0);
+        vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
+                                       * shadowViewSpacePosition;
+        vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz
+                                             * (0.5 / shadowClipSpacePosition.w)
+                                         + 0.5;
+
+        float shadowDepth = texture(u_shadowDepthTexture,
+                                    vec3(shadowScreenSpacePosition.xy, float(cascadeIndex)))
+                                .r;
+
+        if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
+            && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0)))) {
+            if (shadowDepth != 0.0
+                && -shadowViewSpacePosition.z >= shadowDepth + CascadeBiases[cascadeIndex]) {
+                diffuseTerm = 0.0;
+            }
+            break;
+        }
     }
 
     return diffuseTerm + ambientTerm;

@@ -1,5 +1,7 @@
 #include "opengl_widget.h"
 
+#include "shadow_map_camera.h"
+
 #include <glm/glm.hpp>
 
 #include <QDateTime>
@@ -7,7 +9,7 @@
 #include <QtCore/qthreadpool.h>
 
 #include <mutex>
-#include <tuple>
+#include <ranges>
 
 namespace minecraft {
 
@@ -61,7 +63,7 @@ void OpenGLWidget::initializeGL()
 
     _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
                                {":/shaders/shadow_depth.frag.glsl"},
-                               {"u_shadowViewMatrix", "u_shadowViewProjectionMatrix"});
+                               {"u_shadowViewMatrix", "u_shadowProjectionMatrix"});
 
     _geometryProgram.create({":/shaders/block_type.glsl",
                              ":/shaders/block_face.glsl",
@@ -77,8 +79,8 @@ void OpenGLWidget::initializeGL()
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
                             {"u_viewMatrixInverse",
                              "u_projectionMatrixInverse",
-                             "u_shadowViewMatrix",
-                             "u_shadowViewProjectionMatrix",
+                             "u_shadowViewMatrices",
+                             "u_shadowProjectionMatrices",
                              "u_shadowDepthTexture",
                              "u_opaqueNormalTexture",
                              "u_opaqueAlbedoTexture",
@@ -91,7 +93,7 @@ void OpenGLWidget::initializeGL()
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
     // The shadow map framebuffer has a fixed size and does not resize with the viewport.
-    _shadowMapFramebuffer.resizeViewport(8192, 8192);
+    _shadowMapFramebuffer.resizeViewport(4096, 4096);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -123,22 +125,18 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
-    glm::mat4 shadowViewMatrix;
-    glm::mat4 shadowProjectionMatrix;
+    ShadowMapCamera shadowMapCamera;
     glm::mat4 viewMatrix;
     glm::mat4 projectionMatrix;
     glm::vec3 cameraPosition;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
-        std::tie(shadowViewMatrix, shadowProjectionMatrix)
-            = camera.getDirectionalLightShadowViewProjectionMatrices(glm::vec3{0.5f, 1.0f, 0.75f});
+        shadowMapCamera.update(glm::vec3{1.5f, 1.0f, 2.0f}, camera);
         viewMatrix = camera.pose().viewMatrix();
         projectionMatrix = camera.projectionMatrix();
         cameraPosition = camera.pose().position();
     }
-    const auto shadowViewProjectionMatrix{shadowProjectionMatrix * shadowViewMatrix};
-    const auto viewProjectionMatrix{projectionMatrix * viewMatrix};
 
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
@@ -148,18 +146,22 @@ void OpenGLWidget::paintGL()
         const auto updateResult{_terrainStreamer.update(cameraPosition)};
 
         _shadowDepthProgram.use();
-        _shadowDepthProgram.setUniform("u_shadowViewMatrix", shadowViewMatrix);
-        _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::NumCascades)) {
+            _shadowDepthProgram.setUniform("u_shadowViewMatrix",
+                                           shadowMapCamera.viewMatrix(cascadeIndex));
+            _shadowDepthProgram.setUniform("u_shadowProjectionMatrix",
+                                           shadowMapCamera.projectionMatrix(cascadeIndex));
 
-        _shadowMapFramebuffer.bind(0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        debugError();
-        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            chunk->drawOpaque();
+            _shadowMapFramebuffer.bind(cascadeIndex);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            debugError();
+            for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
+                chunk->drawOpaque();
+            }
         }
 
         _geometryProgram.use();
-        _geometryProgram.setUniform("u_viewProjectionMatrix", viewProjectionMatrix);
+        _geometryProgram.setUniform("u_viewProjectionMatrix", projectionMatrix * viewMatrix);
         _geometryProgram.setUniform("u_time", time);
         _geometryProgram.setUniform("u_cameraPosition", cameraPosition);
 
@@ -194,8 +196,20 @@ void OpenGLWidget::paintGL()
     _lightingProgram.use();
     _lightingProgram.setUniform("u_viewMatrixInverse", glm::inverse(viewMatrix));
     _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
-    _lightingProgram.setUniform("u_shadowViewMatrix", shadowViewMatrix);
-    _lightingProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
+    {
+        glm::mat4 shadowViewMatrices[ShadowMapCamera::NumCascades];
+        glm::mat4 shadowProjectionMatrices[ShadowMapCamera::NumCascades];
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::NumCascades)) {
+            shadowViewMatrices[cascadeIndex] = shadowMapCamera.viewMatrix(cascadeIndex);
+            shadowProjectionMatrices[cascadeIndex] = shadowMapCamera.projectionMatrix(cascadeIndex);
+        }
+        _lightingProgram.setUniforms("u_shadowViewMatrices",
+                                     ShadowMapCamera::NumCascades,
+                                     shadowViewMatrices);
+        _lightingProgram.setUniforms("u_shadowProjectionMatrices",
+                                     ShadowMapCamera::NumCascades,
+                                     shadowProjectionMatrices);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     debugError();

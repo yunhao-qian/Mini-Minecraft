@@ -26,8 +26,6 @@ public:
 
     void bind(const int cascadeIndex);
 
-    static constexpr int NumCascades{4};
-
 private:
     void releaseResources();
 

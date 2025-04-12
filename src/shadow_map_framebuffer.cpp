@@ -1,5 +1,7 @@
 #include "shadow_map_framebuffer.h"
 
+#include "shadow_map_camera.h"
+
 namespace minecraft {
 
 void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
@@ -20,8 +22,16 @@ void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
     _context->glBindTexture(GL_TEXTURE_2D_ARRAY, _depthTexture);
     _context->debugError();
-    _context->glTexImage3D(
-        GL_TEXTURE_2D_ARRAY, 0, GL_R32F, width, height, NumCascades, 0, GL_RED, GL_FLOAT, nullptr);
+    _context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
+                           0,
+                           GL_R32F,
+                           width,
+                           height,
+                           ShadowMapCamera::NumCascades,
+                           0,
+                           GL_RED,
+                           GL_FLOAT,
+                           nullptr);
     _context->debugError();
 
     _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

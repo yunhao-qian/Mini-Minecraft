@@ -34,6 +34,9 @@ public:
     template<typename T>
     void setUniform(const QString &name, const T &value) const;
 
+    template<typename T>
+    void setUniforms(const QString &name, const GLsizei count, const T *values);
+
 private:
     template<typename T>
     static constexpr auto DependentFalse{false};
@@ -76,8 +79,6 @@ void ShaderProgram::setUniform(const QString &name, const T &value) const
         _context->glUniform1i(location, value);
     } else if constexpr (std::is_same_v<T, GLfloat>) {
         _context->glUniform1f(location, value);
-    } else if constexpr (std::is_same_v<T, glm::vec2>) {
-        _context->glUniform2f(location, value[0], value[1]);
     } else if constexpr (std::is_same_v<T, glm::vec3>) {
         _context->glUniform3f(location, value[0], value[1], value[2]);
     } else if constexpr (std::is_same_v<T, glm::mat4>) {
@@ -85,6 +86,23 @@ void ShaderProgram::setUniform(const QString &name, const T &value) const
     } else {
         // Workaround for static_assert(false):
         // https://en.cppreference.com/w/cpp/language/static_assert
+        static_assert(DependentFalse<T>, "Unsupported uniform type");
+    }
+    _context->debugError();
+}
+
+template<typename T>
+void ShaderProgram::setUniforms(const QString &name, const GLsizei count, const T *values)
+{
+    const auto it{_uniformLocations.find(name)};
+    if (it == _uniformLocations.end()) {
+        qWarning() << "Uniform" << name << "not found in shader program";
+        return;
+    }
+    const auto location{it->second};
+    if constexpr (std::is_same_v<T, glm::mat4>) {
+        _context->glUniformMatrix4fv(location, count, GL_FALSE, &values[0][0][0]);
+    } else {
         static_assert(DependentFalse<T>, "Unsupported uniform type");
     }
     _context->debugError();

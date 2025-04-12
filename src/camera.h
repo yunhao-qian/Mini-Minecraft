@@ -5,8 +5,6 @@
 
 #include <glm/glm.hpp>
 
-#include <utility>
-
 namespace minecraft {
 
 class Camera
@@ -17,7 +15,7 @@ public:
            const int height,
            const float fieldOfViewY = 45.0f,
            const float near = 0.1f,
-           const float far = 1000.0f);
+           const float far = 500.0f);
 
     const Pose &pose() const;
     void setPose(const Pose &pose);
@@ -25,12 +23,12 @@ public:
     float fieldOfViewY() const;
     void setFieldOfViewY(const float fieldOfViewY);
 
+    float near() const;
+    float far() const;
+
     void resizeViewport(const int width, const int height);
 
     const glm::mat4 &projectionMatrix() const;
-
-    std::pair<glm::mat4, glm::mat4> getDirectionalLightShadowViewProjectionMatrices(
-        const glm::vec3 &direction) const;
 
 private:
     void updateProjectionMatrix();
@@ -77,6 +75,16 @@ inline void Camera::setFieldOfViewY(const float fieldOfViewY)
 {
     _fieldOfViewY = fieldOfViewY;
     updateProjectionMatrix();
+}
+
+inline float Camera::near() const
+{
+    return _near;
+}
+
+inline float Camera::far() const
+{
+    return _far;
 }
 
 inline void Camera::resizeViewport(const int width, const int height)
