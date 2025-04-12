@@ -1,4 +1,8 @@
+in float v_shadowViewSpaceDepth;
+
+layout(location = 0) out float f_depth;
+
 void main()
 {
-    // Do nothing as it is a depth-only pass.
+    f_depth = v_shadowViewSpaceDepth;
 }

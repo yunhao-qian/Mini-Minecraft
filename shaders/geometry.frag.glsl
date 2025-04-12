@@ -11,11 +11,14 @@ flat in vec3 v_normal;
 flat in int v_blockType;
 flat in int v_mediumType;
 
-layout(location = 0) out vec4 f_normal;
-layout(location = 1) out vec4 f_albedo;
+layout(location = 0) out float f_depth;
+layout(location = 1) out vec4 f_normal;
+layout(location = 2) out vec4 f_albedo;
 
 void main()
 {
+    f_depth = distance(u_cameraPosition, v_worldSpacePosition);
+
     vec3 textureCoords = vec3(v_textureCoords, float(v_textureIndex));
 
     vec4 textureNormal = texture(u_normalTexture, textureCoords);

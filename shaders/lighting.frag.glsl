@@ -1,5 +1,6 @@
-uniform vec3 u_cameraPosition;
-uniform mat4 u_viewProjectionMatrixInverse;
+uniform mat4 u_viewMatrixInverse;
+uniform mat4 u_projectionMatrixInverse;
+uniform mat4 u_shadowViewMatrix;
 uniform mat4 u_shadowViewProjectionMatrix;
 uniform sampler2D u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
@@ -18,9 +19,8 @@ struct FragmentAttributes
     vec3 normal;
     int mediumType;
     vec4 albedo;
-    float screenSpaceDepth;
+    float depth;
     vec3 worldSpacePosition;
-    float worldSpaceDepth;
 };
 
 FragmentAttributes getFragmentAttributes(sampler2D normalTexture,
@@ -34,15 +34,14 @@ FragmentAttributes getFragmentAttributes(sampler2D normalTexture,
         attributes.mediumType = blockTypeFromFloat(normalData.a);
     }
     attributes.albedo = texture(albedoTexture, v_textureCoords);
-    attributes.screenSpaceDepth = texture(depthTexture, v_textureCoords).r;
+    attributes.depth = texture(depthTexture, v_textureCoords).r;
     {
-        vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0,
-                                      attributes.screenSpaceDepth * 2.0 - 1.0,
-                                      1.0);
-        vec4 worldSpacePosition = u_viewProjectionMatrixInverse * clipSpacePosition;
-        attributes.worldSpacePosition = worldSpacePosition.xyz / worldSpacePosition.w;
+        vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
+        vec4 viewSpacePosition = u_projectionMatrixInverse * clipSpacePosition;
+        viewSpacePosition.xyz *= attributes.depth / length(viewSpacePosition.xyz);
+        viewSpacePosition.w = 1.0;
+        attributes.worldSpacePosition = (u_viewMatrixInverse * viewSpacePosition).xyz;
     }
-    attributes.worldSpaceDepth = distance(attributes.worldSpacePosition, u_cameraPosition);
     return attributes;
 }
 
@@ -53,13 +52,14 @@ float getLightIntensity(vec3 normal, vec3 worldSpacePosition)
     float diffuseTerm = max(dot(normal, LightDirection), 0.0);
     float ambientTerm = 0.2;
 
+    float shadowViewSpaceDepth = -(u_shadowViewMatrix * vec4(worldSpacePosition, 1.0)).z;
     vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrix * vec4(worldSpacePosition, 1.0);
-    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz / shadowClipSpacePosition.w * 0.5
+    vec2 shadowScreenSpacePosition = shadowClipSpacePosition.xy / shadowClipSpacePosition.w * 0.5
                                      + 0.5;
-    float shadowDepth = texture(u_shadowDepthTexture, shadowScreenSpacePosition.xy).r;
-    if (all(greaterThanEqual(shadowScreenSpacePosition.xy, vec2(0.0, 0.0)))
-        && all(lessThanEqual(shadowScreenSpacePosition.xy, vec2(1.0, 1.0))) && shadowDepth < 1.0
-        && shadowScreenSpacePosition.z > shadowDepth) {
+    float shadowDepth = texture(u_shadowDepthTexture, shadowScreenSpacePosition).r;
+    if (all(greaterThanEqual(shadowScreenSpacePosition, vec2(0.0, 0.0)))
+        && all(lessThanEqual(shadowScreenSpacePosition, vec2(1.0, 1.0))) && shadowDepth != 0.0
+        && shadowViewSpaceDepth >= shadowDepth + 0.1) {
         diffuseTerm = 0.0;
     }
 
@@ -96,10 +96,10 @@ void main()
                                                                      u_translucentAlbedoTexture,
                                                                      u_translucentDepthTexture);
 
-    float farDepth = opaqueAttributes.worldSpaceDepth;
+    float farDepth = opaqueAttributes.depth;
     vec3 farColor;
     int farMediumType;
-    if (opaqueAttributes.screenSpaceDepth >= 1.0) {
+    if (opaqueAttributes.depth == 0.0) {
         farColor = SkyColor;
         farMediumType = BlockTypeAir;
     } else {
@@ -111,12 +111,12 @@ void main()
     float nearDepth;
     vec4 nearColor;
     int nearMediumType;
-    if (translucentAttributes.screenSpaceDepth >= opaqueAttributes.screenSpaceDepth) {
+    if (translucentAttributes.depth >= opaqueAttributes.depth) {
         nearDepth = 0.0;
         nearColor = vec4(0.0, 0.0, 0.0, 0.0);
         nearMediumType = BlockTypeAir;
     } else {
-        nearDepth = translucentAttributes.worldSpaceDepth;
+        nearDepth = translucentAttributes.depth;
         nearColor = translucentAttributes.albedo
                     * getLightIntensity(translucentAttributes.normal,
                                         translucentAttributes.worldSpacePosition);

@@ -21,9 +21,9 @@ public:
     int height() const;
     void resizeViewport(const int width, const int height);
 
+    GLuint depthTexture() const;
     GLuint normalTexture() const;
     GLuint albedoTexture() const;
-    GLuint depthTexture() const;
 
     void bind();
 
@@ -40,9 +40,10 @@ private:
     int _width;
     int _height;
     GLuint _fbo;
+    GLuint _depthTexture;
     GLuint _normalTexture;
     GLuint _albedoTexture;
-    GLuint _depthTexture;
+    GLuint _depthRenderbuffer;
 };
 
 inline Framebuffer::Framebuffer(OpenGLContext *const context, const bool depthOnly)
@@ -51,9 +52,10 @@ inline Framebuffer::Framebuffer(OpenGLContext *const context, const bool depthOn
     , _width{0}
     , _height{0}
     , _fbo{0u}
+    , _depthTexture{0u}
     , _normalTexture{0u}
     , _albedoTexture{0u}
-    , _depthTexture{0u}
+    , _depthRenderbuffer{0u}
 {}
 
 inline Framebuffer::~Framebuffer()
@@ -71,6 +73,11 @@ inline int Framebuffer::height() const
     return _height;
 }
 
+inline GLuint Framebuffer::depthTexture() const
+{
+    return _depthTexture;
+}
+
 inline GLuint Framebuffer::normalTexture() const
 {
     return _normalTexture;
@@ -81,14 +88,13 @@ inline GLuint Framebuffer::albedoTexture() const
     return _albedoTexture;
 }
 
-inline GLuint Framebuffer::depthTexture() const
-{
-    return _depthTexture;
-}
-
 inline void Framebuffer::bind()
 {
     _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
+    _context->debugError();
+    // There are framebuffers of different sizes (e.g., shadow depth framebuffer vs. geometry
+    // framebuffer), so we need to set the viewport every time.
+    _context->glViewport(0, 0, _width, _height);
     _context->debugError();
 }
 

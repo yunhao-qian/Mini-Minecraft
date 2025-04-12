@@ -7,6 +7,7 @@
 #include <QtCore/qthreadpool.h>
 
 #include <mutex>
+#include <tuple>
 
 namespace minecraft {
 
@@ -60,7 +61,7 @@ void OpenGLWidget::initializeGL()
 
     _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
                                {":/shaders/shadow_depth.frag.glsl"},
-                               {"u_shadowViewProjectionMatrix"});
+                               {"u_shadowViewMatrix", "u_shadowViewProjectionMatrix"});
 
     _geometryProgram.create({":/shaders/block_type.glsl",
                              ":/shaders/block_face.glsl",
@@ -74,8 +75,9 @@ void OpenGLWidget::initializeGL()
 
     _lightingProgram.create({":/shaders/lighting.vert.glsl"},
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
-                            {"u_cameraPosition",
-                             "u_viewProjectionMatrixInverse",
+                            {"u_viewMatrixInverse",
+                             "u_projectionMatrixInverse",
+                             "u_shadowViewMatrix",
                              "u_shadowViewProjectionMatrix",
                              "u_shadowDepthTexture",
                              "u_opaqueNormalTexture",
@@ -89,7 +91,7 @@ void OpenGLWidget::initializeGL()
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
     // The shadow map framebuffer has a fixed size and does not resize with the viewport.
-    _shadowDepthFramebuffer.resizeViewport(2048, 2048);
+    _shadowDepthFramebuffer.resizeViewport(8192, 8192);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -121,17 +123,22 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
-    glm::mat4 shadowViewProjectionMatrix;
-    glm::mat4 viewProjectionMatrix;
+    glm::mat4 shadowViewMatrix;
+    glm::mat4 shadowProjectionMatrix;
+    glm::mat4 viewMatrix;
+    glm::mat4 projectionMatrix;
     glm::vec3 cameraPosition;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
-        shadowViewProjectionMatrix = camera.getDirectionalLightShadowViewProjectionMatrix(
-            glm::vec3{0.5f, 1.0f, 0.75f});
-        viewProjectionMatrix = camera.projectionMatrix() * camera.pose().viewMatrix();
+        std::tie(shadowViewMatrix, shadowProjectionMatrix)
+            = camera.getDirectionalLightShadowViewProjectionMatrices(glm::vec3{0.5f, 1.0f, 0.75f});
+        viewMatrix = camera.pose().viewMatrix();
+        projectionMatrix = camera.projectionMatrix();
         cameraPosition = camera.pose().position();
     }
+    const auto shadowViewProjectionMatrix{shadowProjectionMatrix * shadowViewMatrix};
+    const auto viewProjectionMatrix{projectionMatrix * viewMatrix};
 
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
@@ -141,6 +148,7 @@ void OpenGLWidget::paintGL()
         const auto updateResult{_terrainStreamer.update(cameraPosition)};
 
         _shadowDepthProgram.use();
+        _shadowDepthProgram.setUniform("u_shadowViewMatrix", shadowViewMatrix);
         _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
 
         _shadowDepthFramebuffer.bind();
@@ -181,11 +189,15 @@ void OpenGLWidget::paintGL()
     });
 
     _lightingProgram.use();
-    _lightingProgram.setUniform("u_cameraPosition", cameraPosition);
-    _lightingProgram.setUniform("u_viewProjectionMatrixInverse", glm::inverse(viewProjectionMatrix));
+    _lightingProgram.setUniform("u_viewMatrixInverse", glm::inverse(viewMatrix));
+    _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
+    _lightingProgram.setUniform("u_shadowViewMatrix", shadowViewMatrix);
     _lightingProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+    debugError();
+    // Unnecessary, but set the viewport size for clarity.
+    glViewport(0, 0, _opaqueGeometryFramebuffer.width(), _opaqueGeometryFramebuffer.height());
     debugError();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     debugError();

@@ -18,27 +18,34 @@ void Framebuffer::resizeViewport(const int width, const int height)
     _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
     _context->debugError();
 
-    // Use higher precisions for the normal and depth textures.
+    // Use higher precisions for the depth and normal textures.
+    // Use float32 for the depth texture because we may need to recover accurate world-space
+    // positions from the depth values. This saves the need for a separate position texture.
+    _depthTexture = generateAndAttachTexture(GL_R32F, GL_RED, GL_FLOAT, GL_COLOR_ATTACHMENT0);
     if (!_depthOnly) {
         _normalTexture = generateAndAttachTexture(GL_RGBA16F,
                                                   GL_RGBA,
                                                   GL_HALF_FLOAT,
-                                                  GL_COLOR_ATTACHMENT0);
+                                                  GL_COLOR_ATTACHMENT1);
         _albedoTexture = generateAndAttachTexture(GL_RGBA8,
                                                   GL_RGBA,
                                                   GL_UNSIGNED_BYTE,
-                                                  GL_COLOR_ATTACHMENT1);
-        const GLenum drawBuffers[2]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-        _context->glDrawBuffers(2, drawBuffers);
-        _context->debugError();
+                                                  GL_COLOR_ATTACHMENT2);
     }
+    const GLenum drawBuffers[3]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
+    _context->glDrawBuffers(_depthOnly ? 1 : 3, drawBuffers);
+    _context->debugError();
 
-    // Use float32 for the depth texture because we may need to recover accurate world-space
-    // positions from the depth values. This saves the need for a separate position texture.
-    _depthTexture = generateAndAttachTexture(GL_DEPTH_COMPONENT32F,
-                                             GL_DEPTH_COMPONENT,
-                                             GL_FLOAT,
-                                             GL_DEPTH_ATTACHMENT);
+    _context->glGenRenderbuffers(1, &_depthRenderbuffer);
+    _context->debugError();
+    _context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer);
+    _context->debugError();
+    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, _width, _height);
+    _context->debugError();
+    _context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                        GL_DEPTH_ATTACHMENT,
+                                        GL_RENDERBUFFER,
+                                        _depthRenderbuffer);
 
     {
         const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
@@ -66,6 +73,10 @@ void Framebuffer::releaseResources()
         _context->debugError();
         *texture = 0u;
     }
+
+    _context->glDeleteRenderbuffers(1, &_depthRenderbuffer);
+    _context->debugError();
+    _depthRenderbuffer = 0u;
 }
 
 GLuint Framebuffer::generateAndAttachTexture(const GLint internalFormat,

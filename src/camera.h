@@ -5,6 +5,8 @@
 
 #include <glm/glm.hpp>
 
+#include <utility>
+
 namespace minecraft {
 
 class Camera
@@ -27,7 +29,8 @@ public:
 
     const glm::mat4 &projectionMatrix() const;
 
-    glm::mat4 getDirectionalLightShadowViewProjectionMatrix(const glm::vec3 &direction) const;
+    std::pair<glm::mat4, glm::mat4> getDirectionalLightShadowViewProjectionMatrices(
+        const glm::vec3 &direction) const;
 
 private:
     void updateProjectionMatrix();

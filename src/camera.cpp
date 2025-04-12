@@ -6,14 +6,15 @@
 
 namespace minecraft {
 
-glm::mat4 Camera::getDirectionalLightShadowViewProjectionMatrix(const glm::vec3 &direction) const
+std::pair<glm::mat4, glm::mat4> Camera::getDirectionalLightShadowViewProjectionMatrices(
+    const glm::vec3 &direction) const
 {
     // Find a view projection matrix for the directional light that covers the camera's view
     // frustum.
 
     // The light direction vector points towards the light source.
     // glm::vec3 position{_pose.position().x, 0.0, _pose.position().z};
-    const auto shadowViewMatrix{
+    auto shadowViewMatrix{
         glm::lookAt(_pose.position(), _pose.position() - direction, glm::vec3{0.0f, 1.0f, 0.0f})};
 
     constexpr auto Infinity{std::numeric_limits<float>::infinity()};
@@ -35,12 +36,21 @@ glm::mat4 Camera::getDirectionalLightShadowViewProjectionMatrix(const glm::vec3 
         }
     }
 
+    // Add a small margin to the bounding box.
+    minPoint -= 1.0f;
+    maxPoint += 1.0f;
+
+    // Shift the Z values to ensure they are always negative.
+    shadowViewMatrix[3][2] -= maxPoint.z;
+    minPoint.z -= maxPoint.z;
+    maxPoint.z = 0.0f;
+
     // Use orthographic projection so that the depth is linear.
     // Near and far planes are specified in the negative Z-direction.
     const auto shadowProjectionMatrix{
         glm::ortho(minPoint.x, maxPoint.x, minPoint.y, maxPoint.y, -maxPoint.z, -minPoint.z)};
 
-    return shadowProjectionMatrix * shadowViewMatrix;
+    return {shadowViewMatrix, shadowProjectionMatrix};
 }
 
 } // namespace minecraft
