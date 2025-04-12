@@ -61,6 +61,8 @@ set(PROJECT_SOURCES
     src/scene.h
     src/shader_program.h
     src/shader_program.cpp
+    src/shadow_map_framebuffer.h
+    src/shadow_map_framebuffer.cpp
     src/terrain.h
     src/terrain.cpp
     src/terrain_chunk.h

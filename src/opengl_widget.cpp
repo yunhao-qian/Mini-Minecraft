@@ -24,9 +24,9 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _lightingProgram{this}
     , _colorTexture{this}
     , _normalTexture{this}
-    , _shadowDepthFramebuffer{this, true}
-    , _opaqueGeometryFramebuffer{this, false}
-    , _translucentGeometryFramebuffer{this, false}
+    , _shadowMapFramebuffer{this}
+    , _opaqueGeometryFramebuffer{this}
+    , _translucentGeometryFramebuffer{this}
     , _lightingVAO{0u}
 {
     // Allows the widget to accept focus for keyboard input.
@@ -91,7 +91,7 @@ void OpenGLWidget::initializeGL()
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
     // The shadow map framebuffer has a fixed size and does not resize with the viewport.
-    _shadowDepthFramebuffer.resizeViewport(8192, 8192);
+    _shadowMapFramebuffer.resizeViewport(8192, 8192);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -151,8 +151,8 @@ void OpenGLWidget::paintGL()
         _shadowDepthProgram.setUniform("u_shadowViewMatrix", shadowViewMatrix);
         _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix", shadowViewProjectionMatrix);
 
-        _shadowDepthFramebuffer.bind();
-        glClear(GL_DEPTH_BUFFER_BIT);
+        _shadowMapFramebuffer.bind(0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugError();
         for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
             chunk->drawOpaque();
@@ -178,8 +178,11 @@ void OpenGLWidget::paintGL()
         }
     }
 
+    glActiveTexture(GL_TEXTURE2);
+    debugError();
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _shadowMapFramebuffer.depthTexture());
+    debugError();
     bindTextures({
-        {GL_TEXTURE2, _shadowDepthFramebuffer.depthTexture()},
         {GL_TEXTURE3, _opaqueGeometryFramebuffer.normalTexture()},
         {GL_TEXTURE4, _opaqueGeometryFramebuffer.albedoTexture()},
         {GL_TEXTURE5, _opaqueGeometryFramebuffer.depthTexture()},

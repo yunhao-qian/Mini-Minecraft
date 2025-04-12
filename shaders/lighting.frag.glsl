@@ -2,7 +2,7 @@ uniform mat4 u_viewMatrixInverse;
 uniform mat4 u_projectionMatrixInverse;
 uniform mat4 u_shadowViewMatrix;
 uniform mat4 u_shadowViewProjectionMatrix;
-uniform sampler2D u_shadowDepthTexture;
+uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
 uniform sampler2D u_opaqueDepthTexture;
@@ -56,7 +56,7 @@ float getLightIntensity(vec3 normal, vec3 worldSpacePosition)
     vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrix * vec4(worldSpacePosition, 1.0);
     vec2 shadowScreenSpacePosition = shadowClipSpacePosition.xy / shadowClipSpacePosition.w * 0.5
                                      + 0.5;
-    float shadowDepth = texture(u_shadowDepthTexture, shadowScreenSpacePosition).r;
+    float shadowDepth = texture(u_shadowDepthTexture, vec3(shadowScreenSpacePosition, 0.0)).r;
     if (all(greaterThanEqual(shadowScreenSpacePosition, vec2(0.0, 0.0)))
         && all(lessThanEqual(shadowScreenSpacePosition, vec2(1.0, 1.0))) && shadowDepth != 0.0
         && shadowViewSpaceDepth >= shadowDepth + 0.1) {

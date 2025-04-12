@@ -8,7 +8,7 @@ namespace minecraft {
 class Framebuffer
 {
 public:
-    Framebuffer(OpenGLContext *const context, const bool depthOnly);
+    Framebuffer(OpenGLContext *const context);
     Framebuffer(const Framebuffer &) = delete;
     Framebuffer(Framebuffer &&) = delete;
 
@@ -36,7 +36,6 @@ private:
                                     const GLenum attachment);
 
     OpenGLContext *_context;
-    bool _depthOnly;
     int _width;
     int _height;
     GLuint _fbo;
@@ -46,9 +45,8 @@ private:
     GLuint _depthRenderbuffer;
 };
 
-inline Framebuffer::Framebuffer(OpenGLContext *const context, const bool depthOnly)
+inline Framebuffer::Framebuffer(OpenGLContext *const context)
     : _context{context}
-    , _depthOnly{depthOnly}
     , _width{0}
     , _height{0}
     , _fbo{0u}
@@ -92,8 +90,6 @@ inline void Framebuffer::bind()
 {
     _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
     _context->debugError();
-    // There are framebuffers of different sizes (e.g., shadow depth framebuffer vs. geometry
-    // framebuffer), so we need to set the viewport every time.
     _context->glViewport(0, 0, _width, _height);
     _context->debugError();
 }

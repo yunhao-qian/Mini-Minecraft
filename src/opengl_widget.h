@@ -8,6 +8,7 @@
 #include "player_info_display_data.h"
 #include "scene.h"
 #include "shader_program.h"
+#include "shadow_map_framebuffer.h"
 #include "terrain_streamer.h"
 
 #include <QOpenGLWidget>
@@ -59,7 +60,7 @@ private:
     ShaderProgram _lightingProgram;
     ArrayTexture2D _colorTexture;
     ArrayTexture2D _normalTexture;
-    Framebuffer _shadowDepthFramebuffer;
+    ShadowMapFramebuffer _shadowMapFramebuffer;
     Framebuffer _opaqueGeometryFramebuffer;
     Framebuffer _translucentGeometryFramebuffer;
 

@@ -22,19 +22,22 @@ void Framebuffer::resizeViewport(const int width, const int height)
     // Use float32 for the depth texture because we may need to recover accurate world-space
     // positions from the depth values. This saves the need for a separate position texture.
     _depthTexture = generateAndAttachTexture(GL_R32F, GL_RED, GL_FLOAT, GL_COLOR_ATTACHMENT0);
-    if (!_depthOnly) {
-        _normalTexture = generateAndAttachTexture(GL_RGBA16F,
-                                                  GL_RGBA,
-                                                  GL_HALF_FLOAT,
-                                                  GL_COLOR_ATTACHMENT1);
-        _albedoTexture = generateAndAttachTexture(GL_RGBA8,
-                                                  GL_RGBA,
-                                                  GL_UNSIGNED_BYTE,
-                                                  GL_COLOR_ATTACHMENT2);
+    _normalTexture = generateAndAttachTexture(GL_RGBA16F,
+                                              GL_RGBA,
+                                              GL_HALF_FLOAT,
+                                              GL_COLOR_ATTACHMENT1);
+    _albedoTexture = generateAndAttachTexture(GL_RGBA8,
+                                              GL_RGBA,
+                                              GL_UNSIGNED_BYTE,
+                                              GL_COLOR_ATTACHMENT2);
+
+    {
+        const GLenum drawBuffers[3]{GL_COLOR_ATTACHMENT0,
+                                    GL_COLOR_ATTACHMENT1,
+                                    GL_COLOR_ATTACHMENT2};
+        _context->glDrawBuffers(3, drawBuffers);
+        _context->debugError();
     }
-    const GLenum drawBuffers[3]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
-    _context->glDrawBuffers(_depthOnly ? 1 : 3, drawBuffers);
-    _context->debugError();
 
     _context->glGenRenderbuffers(1, &_depthRenderbuffer);
     _context->debugError();
@@ -46,6 +49,7 @@ void Framebuffer::resizeViewport(const int width, const int height)
                                         GL_DEPTH_ATTACHMENT,
                                         GL_RENDERBUFFER,
                                         _depthRenderbuffer);
+    _context->debugError();
 
     {
         const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
