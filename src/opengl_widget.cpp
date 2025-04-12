@@ -79,6 +79,8 @@ void OpenGLWidget::initializeGL()
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
                             {"u_viewMatrixInverse",
                              "u_projectionMatrixInverse",
+                             "u_cameraNear",
+                             "u_cameraFar",
                              "u_shadowViewMatrices",
                              "u_shadowProjectionMatrices",
                              "u_shadowDepthTexture",
@@ -129,6 +131,8 @@ void OpenGLWidget::paintGL()
     glm::mat4 viewMatrix;
     glm::mat4 projectionMatrix;
     glm::vec3 cameraPosition;
+    float cameraNear;
+    float cameraFar;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
@@ -136,6 +140,8 @@ void OpenGLWidget::paintGL()
         viewMatrix = camera.pose().viewMatrix();
         projectionMatrix = camera.projectionMatrix();
         cameraPosition = camera.pose().position();
+        cameraNear = camera.near();
+        cameraFar = camera.far();
     }
 
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
@@ -196,6 +202,8 @@ void OpenGLWidget::paintGL()
     _lightingProgram.use();
     _lightingProgram.setUniform("u_viewMatrixInverse", glm::inverse(viewMatrix));
     _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
+    _lightingProgram.setUniform("u_cameraNear", cameraNear);
+    _lightingProgram.setUniform("u_cameraFar", cameraFar);
     {
         glm::mat4 shadowViewMatrices[ShadowMapCamera::NumCascades];
         glm::mat4 shadowProjectionMatrices[ShadowMapCamera::NumCascades];

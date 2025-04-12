@@ -14,7 +14,8 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
     ClipSpaceZSplits.front() = -1.0f;
     ClipSpaceZSplits.back() = 1.0f;
     {
-        // Logarithmic split scheme.
+        // Logarithmic split scheme:
+        // https://computergraphics.stackexchange.com/questions/13026/cascaded-shadow-mapping-csm-partitioning-the-frustum-to-a-nearly-1-by-1-mappi
         const auto zRatio{camera.far() / camera.near()};
         for (const auto cascadeIndex : std::views::iota(1, NumCascades)) {
             const auto splitRatio{static_cast<float>(cascadeIndex)

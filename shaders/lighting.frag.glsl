@@ -2,6 +2,8 @@ const int NumShadowMapCascades = 4;
 
 uniform mat4 u_viewMatrixInverse;
 uniform mat4 u_projectionMatrixInverse;
+uniform float u_cameraNear;
+uniform float u_cameraFar;
 uniform mat4 u_shadowViewMatrices[NumShadowMapCascades];
 uniform mat4 u_shadowProjectionMatrices[NumShadowMapCascades];
 uniform sampler2DArray u_shadowDepthTexture;
@@ -16,69 +18,65 @@ in vec2 v_textureCoords;
 
 out vec4 f_color;
 
-struct FragmentAttributes
+struct FragmentProperties
 {
-    vec3 normal;
     int mediumType;
     vec4 albedo;
     float depth;
-    vec3 worldSpacePosition;
+    float lightIntensity;
 };
-
-FragmentAttributes getFragmentAttributes(sampler2D normalTexture,
-                                         sampler2D albedoTexture,
-                                         sampler2D depthTexture)
-{
-    FragmentAttributes attributes;
-    {
-        vec4 normalData = texture(normalTexture, v_textureCoords);
-        attributes.normal = normalData.rgb;
-        attributes.mediumType = blockTypeFromFloat(normalData.a);
-    }
-    attributes.albedo = texture(albedoTexture, v_textureCoords);
-    attributes.depth = texture(depthTexture, v_textureCoords).r;
-    {
-        vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
-        vec4 viewSpacePosition = u_projectionMatrixInverse * clipSpacePosition;
-        viewSpacePosition.xyz *= attributes.depth / length(viewSpacePosition.xyz);
-        viewSpacePosition.w = 1.0;
-        attributes.worldSpacePosition = (u_viewMatrixInverse * viewSpacePosition).xyz;
-    }
-    return attributes;
-}
 
 const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
 const float CascadeBiases[NumShadowMapCascades] = float[](0.004, 0.02, 0.1, 0.5);
 
-float getLightIntensity(vec3 normal, vec3 worldSpacePosition)
+FragmentProperties getFragmentProperties(sampler2D normalTexture,
+                                         sampler2D albedoTexture,
+                                         sampler2D depthTexture)
 {
+    FragmentProperties properties;
+
+    vec3 normal;
+    {
+        vec4 normalData = texture(normalTexture, v_textureCoords);
+        normal = normalize(normalData.xyz);
+        properties.mediumType = blockTypeFromFloat(normalData.a);
+    }
+
+    properties.albedo = texture(albedoTexture, v_textureCoords);
+    properties.depth = texture(depthTexture, v_textureCoords).r;
+
+    vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
+    vec4 viewSpacePosition = u_projectionMatrixInverse * clipSpacePosition;
+    viewSpacePosition.xyz *= properties.depth / length(viewSpacePosition.xyz);
+    viewSpacePosition.w = 1.0;
+    vec4 worldSpacePosition = u_viewMatrixInverse * viewSpacePosition;
+
     float diffuseTerm = max(dot(normal, LightDirection), 0.0);
     float ambientTerm = 0.2;
 
-    for (int cascadeIndex = 0; cascadeIndex < NumShadowMapCascades; ++cascadeIndex) {
-        vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex]
-                                       * vec4(worldSpacePosition, 1.0);
-        vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
-                                       * shadowViewSpacePosition;
-        vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz
-                                             * (0.5 / shadowClipSpacePosition.w)
-                                         + 0.5;
+    // Compute the cascade index based on the logarithmic split scheme.
+    float viewSpaceZ = clamp(viewSpacePosition.z, -u_cameraFar, -u_cameraNear);
+    int cascadeIndex = int(floor(float(NumShadowMapCascades) * log(-viewSpaceZ / u_cameraNear)
+                                 / log(u_cameraFar / u_cameraNear)));
+    cascadeIndex = clamp(cascadeIndex, 0, NumShadowMapCascades - 1);
 
-        float shadowDepth = texture(u_shadowDepthTexture,
-                                    vec3(shadowScreenSpacePosition.xy, float(cascadeIndex)))
-                                .r;
+    vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex] * worldSpacePosition;
+    vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
+                                   * shadowViewSpacePosition;
+    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz * (0.5 / shadowClipSpacePosition.w)
+                                     + 0.5;
+    float shadowDepth
+        = texture(u_shadowDepthTexture, vec3(shadowScreenSpacePosition.xy, float(cascadeIndex))).r;
 
-        if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
-            && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0)))) {
-            if (shadowDepth != 0.0
-                && -shadowViewSpacePosition.z >= shadowDepth + CascadeBiases[cascadeIndex]) {
-                diffuseTerm = 0.0;
-            }
-            break;
-        }
+    if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
+        && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0))) && shadowDepth != 0.0
+        && -shadowViewSpacePosition.z >= shadowDepth + CascadeBiases[cascadeIndex]) {
+        diffuseTerm = 0.0;
     }
 
-    return diffuseTerm + ambientTerm;
+    properties.lightIntensity = diffuseTerm + ambientTerm;
+
+    return properties;
 }
 
 const vec3 SkyColor = vec3(0.37, 0.74, 1.0);
@@ -104,38 +102,35 @@ vec3 getAttenuatedColor(vec3 color, float depth, int mediumType)
 
 void main()
 {
-    FragmentAttributes opaqueAttributes = getFragmentAttributes(u_opaqueNormalTexture,
+    FragmentProperties opaqueProperties = getFragmentProperties(u_opaqueNormalTexture,
                                                                 u_opaqueAlbedoTexture,
                                                                 u_opaqueDepthTexture);
-    FragmentAttributes translucentAttributes = getFragmentAttributes(u_translucentNormalTexture,
+    FragmentProperties translucentProperties = getFragmentProperties(u_translucentNormalTexture,
                                                                      u_translucentAlbedoTexture,
                                                                      u_translucentDepthTexture);
 
-    float farDepth = opaqueAttributes.depth;
+    float farDepth = opaqueProperties.depth;
     vec3 farColor;
     int farMediumType;
-    if (opaqueAttributes.depth == 0.0) {
+    if (opaqueProperties.depth == 0.0) {
         farColor = SkyColor;
         farMediumType = BlockTypeAir;
     } else {
-        farColor = opaqueAttributes.albedo.rgb
-                   * getLightIntensity(opaqueAttributes.normal, opaqueAttributes.worldSpacePosition);
-        farMediumType = opaqueAttributes.mediumType;
+        farColor = opaqueProperties.albedo.rgb * opaqueProperties.lightIntensity;
+        farMediumType = opaqueProperties.mediumType;
     }
 
     float nearDepth;
     vec4 nearColor;
     int nearMediumType;
-    if (translucentAttributes.depth >= opaqueAttributes.depth) {
+    if (translucentProperties.depth >= opaqueProperties.depth) {
         nearDepth = 0.0;
         nearColor = vec4(0.0, 0.0, 0.0, 0.0);
         nearMediumType = BlockTypeAir;
     } else {
-        nearDepth = translucentAttributes.depth;
-        nearColor = translucentAttributes.albedo
-                    * getLightIntensity(translucentAttributes.normal,
-                                        translucentAttributes.worldSpacePosition);
-        nearMediumType = translucentAttributes.mediumType;
+        nearDepth = translucentProperties.depth;
+        nearColor = translucentProperties.albedo * translucentProperties.lightIntensity;
+        nearMediumType = translucentProperties.mediumType;
     }
 
     vec3 finalColor = getAttenuatedColor(farColor, farDepth - nearDepth, farMediumType);
