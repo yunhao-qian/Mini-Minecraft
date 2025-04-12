@@ -48,7 +48,7 @@ void ArrayTexture2D::generate(const QString &fileName, const int tileRows, const
             // QImage has its origin at the top-left corner, while OpenGL textures have their
             // origins at the bottom-left corner.
             // https://doc.qt.io/qt-6/coordsys.html
-            tileImage.flip(Qt::Vertical);
+            tileImage.mirror(false, true);
             _context->glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
                                       0,
                                       0,

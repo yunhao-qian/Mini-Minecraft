@@ -2,7 +2,6 @@
 #define SHADOW_MAP_FRAMEBUFFER_H
 
 #include "opengl_context.h"
-#include <OpenGL/glext.h>
 
 namespace minecraft {
 
