@@ -19,5 +19,8 @@ void main()
     vec4 viewSpacePosition = u_shadowViewMatrix * worldSpacePosition;
 
     v_shadowViewSpaceDepth = -viewSpacePosition.z;
+    // TODO: Calculating the screen-space position in this way causes obstacles outside of the
+    // camera's view frustum to not cast shadows, and the shadow effect to be dependent on the
+    // camera's orientation. This should be fixed.
     gl_Position = u_shadowProjectionMatrix * viewSpacePosition;
 }
