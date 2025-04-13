@@ -17,11 +17,11 @@ public:
     const glm::mat4 &viewMatrix(const int cascadeIndex) const;
     const glm::mat4 &projectionMatrix(const int cascadeIndex) const;
 
-    static constexpr int NumCascades{4};
+    static constexpr int CascadeCount{4};
 
 private:
-    std::array<glm::mat4, NumCascades> _viewMatrices;
-    std::array<glm::mat4, NumCascades> _projectionMatrices;
+    std::array<glm::mat4, CascadeCount> _viewMatrices;
+    std::array<glm::mat4, CascadeCount> _projectionMatrices;
 };
 
 inline const glm::mat4 &ShadowMapCamera::viewMatrix(const int cascadeIndex) const

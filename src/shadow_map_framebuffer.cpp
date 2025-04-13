@@ -27,7 +27,7 @@ void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
                            GL_R32F,
                            width,
                            height,
-                           ShadowMapCamera::NumCascades,
+                           ShadowMapCamera::CascadeCount,
                            0,
                            GL_RED,
                            GL_FLOAT,

@@ -1,11 +1,11 @@
-const int NumShadowMapCascades = 4;
+const int ShadowMapCascadeCount = 4;
 
 uniform mat4 u_viewMatrixInverse;
 uniform mat4 u_projectionMatrixInverse;
 uniform float u_cameraNear;
 uniform float u_cameraFar;
-uniform mat4 u_shadowViewMatrices[NumShadowMapCascades];
-uniform mat4 u_shadowProjectionMatrices[NumShadowMapCascades];
+uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
+uniform mat4 u_shadowProjectionMatrices[ShadowMapCascadeCount];
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
@@ -27,7 +27,7 @@ struct FragmentProperties
 };
 
 const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
-const float CascadeBiases[NumShadowMapCascades] = float[](0.004, 0.02, 0.1, 0.5);
+const float CascadeBiases[ShadowMapCascadeCount] = float[](0.004, 0.02, 0.1, 0.5);
 
 FragmentProperties getFragmentProperties(sampler2D normalTexture,
                                          sampler2D albedoTexture,
@@ -56,9 +56,9 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
 
     // Compute the cascade index based on the logarithmic split scheme.
     float viewSpaceZ = clamp(viewSpacePosition.z, -u_cameraFar, -u_cameraNear);
-    int cascadeIndex = int(floor(float(NumShadowMapCascades) * log(-viewSpaceZ / u_cameraNear)
+    int cascadeIndex = int(floor(float(ShadowMapCascadeCount) * log(-viewSpaceZ / u_cameraNear)
                                  / log(u_cameraFar / u_cameraNear)));
-    cascadeIndex = clamp(cascadeIndex, 0, NumShadowMapCascades - 1);
+    cascadeIndex = clamp(cascadeIndex, 0, ShadowMapCascadeCount - 1);
 
     vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex] * worldSpacePosition;
     vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]

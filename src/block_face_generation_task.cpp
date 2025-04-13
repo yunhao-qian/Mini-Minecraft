@@ -105,6 +105,11 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
             if (neighborBlock != BlockType::Air) {
                 continue;
             }
+            if (Direction{faceIndex} != Direction::PositiveY) {
+                // Because the water wave algorithm in the shader only works for the positive Y
+                // face, we skip the other faces to avoid rendering artifacts.
+                continue;
+            }
             blockFaces = &_translucentBlockFaces;
         } else if (block == BlockType::Lava) {
             if (neighborBlock != BlockType::Air && neighborBlock != BlockType::Water) {

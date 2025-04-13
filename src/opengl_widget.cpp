@@ -67,8 +67,11 @@ void OpenGLWidget::initializeGL()
 
     _geometryProgram.create({":/shaders/block_type.glsl",
                              ":/shaders/block_face.glsl",
+                             ":/shaders/water_wave.glsl",
                              ":/shaders/geometry.vert.glsl"},
-                            {":/shaders/block_type.glsl", ":/shaders/geometry.frag.glsl"},
+                            {":/shaders/block_type.glsl",
+                             ":/shaders/water_wave.glsl",
+                             ":/shaders/geometry.frag.glsl"},
                             {"u_viewProjectionMatrix",
                              "u_time",
                              "u_cameraPosition",
@@ -152,7 +155,7 @@ void OpenGLWidget::paintGL()
         const auto updateResult{_terrainStreamer.update(cameraPosition)};
 
         _shadowDepthProgram.use();
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::NumCascades)) {
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
             _shadowDepthProgram.setUniform("u_shadowViewMatrix",
                                            shadowMapCamera.viewMatrix(cascadeIndex));
             _shadowDepthProgram.setUniform("u_shadowProjectionMatrix",
@@ -205,17 +208,17 @@ void OpenGLWidget::paintGL()
     _lightingProgram.setUniform("u_cameraNear", cameraNear);
     _lightingProgram.setUniform("u_cameraFar", cameraFar);
     {
-        glm::mat4 shadowViewMatrices[ShadowMapCamera::NumCascades];
-        glm::mat4 shadowProjectionMatrices[ShadowMapCamera::NumCascades];
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::NumCascades)) {
+        glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
+        glm::mat4 shadowProjectionMatrices[ShadowMapCamera::CascadeCount];
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
             shadowViewMatrices[cascadeIndex] = shadowMapCamera.viewMatrix(cascadeIndex);
             shadowProjectionMatrices[cascadeIndex] = shadowMapCamera.projectionMatrix(cascadeIndex);
         }
         _lightingProgram.setUniforms("u_shadowViewMatrices",
-                                     ShadowMapCamera::NumCascades,
+                                     ShadowMapCamera::CascadeCount,
                                      shadowViewMatrices);
         _lightingProgram.setUniforms("u_shadowProjectionMatrices",
-                                     ShadowMapCamera::NumCascades,
+                                     ShadowMapCamera::CascadeCount,
                                      shadowProjectionMatrices);
     }
 

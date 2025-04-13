@@ -15,6 +15,7 @@ flat out vec3 v_bitangent;
 flat out vec3 v_normal;
 flat out int v_blockType;
 flat out int v_mediumType;
+out float v_waterElevation;
 
 vec2 randomOffset(float frequency)
 {
@@ -33,6 +34,11 @@ void main()
 
     v_worldSpacePosition = vec3(faceOrigin + textureCoords.x * faceTangent
                                 + textureCoords.y * faceBitangent);
+    float waterWaveOffset = getWaterWaveOffset(v_worldSpacePosition.xz, u_time);
+    if (a_blockType == BlockTypeWater) {
+        v_worldSpacePosition.y += waterWaveOffset;
+    }
+
     gl_Position = u_viewProjectionMatrix * vec4(v_worldSpacePosition, 1.0);
 
     v_textureIndex = a_textureIndex;
@@ -49,4 +55,7 @@ void main()
 
     v_blockType = a_blockType;
     v_mediumType = a_mediumType;
+
+    // TODO: Replace the hardcoded water level.
+    v_waterElevation = 138.0 + waterWaveOffset;
 }
