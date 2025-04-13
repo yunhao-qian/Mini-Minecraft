@@ -27,7 +27,6 @@ struct FragmentProperties
 };
 
 const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
-const float CascadeBiases[ShadowMapCascadeCount] = float[](0.004, 0.02, 0.1, 0.5);
 
 FragmentProperties getFragmentProperties(sampler2D normalTexture,
                                          sampler2D albedoTexture,
@@ -65,13 +64,21 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
                                    * shadowViewSpacePosition;
     vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz * (0.5 / shadowClipSpacePosition.w)
                                      + 0.5;
-    float shadowDepth
-        = texture(u_shadowDepthTexture, vec3(shadowScreenSpacePosition.xy, float(cascadeIndex))).r;
 
     if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
-        && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0))) && shadowDepth != 0.0
-        && -shadowViewSpacePosition.z >= shadowDepth + CascadeBiases[cascadeIndex]) {
-        diffuseTerm = 0.0;
+        && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0)))) {
+        vec4 depthData = texture(u_shadowDepthTexture,
+                                 vec3(shadowScreenSpacePosition.xy, float(cascadeIndex)));
+        float shadowDepth = depthData.r;
+        float shadowDepthSquared = depthData.g;
+
+        float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 1e-6);
+        float depthDifference = max(-shadowViewSpacePosition.z - shadowDepth, 0.0);
+        float probability = clamp(depthVariance
+                                      / (depthVariance + depthDifference * depthDifference),
+                                  0.0,
+                                  1.0);
+        diffuseTerm *= probability;
     }
 
     properties.lightIntensity = diffuseTerm + ambientTerm;
@@ -112,7 +119,7 @@ void main()
     float farDepth = opaqueProperties.depth;
     vec3 farColor;
     int farMediumType;
-    if (opaqueProperties.depth == 0.0) {
+    if (opaqueProperties.depth >= 1e4) {
         farColor = SkyColor;
         farMediumType = BlockTypeAir;
     } else {

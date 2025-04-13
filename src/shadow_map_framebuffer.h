@@ -23,12 +23,12 @@ public:
 
     GLuint depthTexture() const;
 
-    void bind(const int cascadeIndex);
+    void bind(const int cascadeIndex) const;
 
 private:
     void releaseResources();
 
-    void setTextureLayer(const int cascadeIndex);
+    void setTextureLayer(const int cascadeIndex) const;
 
     OpenGLContext *_context;
     int _width;
@@ -67,7 +67,7 @@ inline GLuint ShadowMapFramebuffer::depthTexture() const
     return _depthTexture;
 }
 
-inline void ShadowMapFramebuffer::bind(const int cascadeIndex)
+inline void ShadowMapFramebuffer::bind(const int cascadeIndex) const
 {
     _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
     _context->debugError();

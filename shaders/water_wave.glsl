@@ -18,11 +18,9 @@ float getWaterWaveOffset(vec2 position, float time)
 {
     float offset = 0.0;
     for (int i = 0; i < WaterWaveCount; ++i) {
-        float trigTerm = dot(WaterWaveAngularWaveVectors[i], position)
-                             * WaterWaveAngularFrequencies[i]
-                         + time * WaterWavePhaseOffsets[i];
-        offset += 2 * WaterWaveAmplitudes[i]
-                  * pow((sin(trigTerm) + 1.0) * 0.5, WaterWaveExponents[i]);
+        float phase = dot(WaterWaveAngularWaveVectors[i], position) * WaterWaveAngularFrequencies[i]
+                      + time * WaterWavePhaseOffsets[i];
+        offset += 2 * WaterWaveAmplitudes[i] * pow((sin(phase) + 1.0) * 0.5, WaterWaveExponents[i]);
     }
     return offset - 0.7;
 }
@@ -31,13 +29,11 @@ vec3 getWaterWaveNormal(vec2 position, float time)
 {
     vec2 derivative = vec2(0.0, 0.0);
     for (int i = 0; i < WaterWaveCount; ++i) {
-        float trigTerm = dot(WaterWaveAngularWaveVectors[i], position)
-                             * WaterWaveAngularFrequencies[i]
-                         + time * WaterWavePhaseOffsets[i];
+        float phase = dot(WaterWaveAngularWaveVectors[i], position) * WaterWaveAngularFrequencies[i]
+                      + time * WaterWavePhaseOffsets[i];
         derivative += WaterWaveExponents[i] * WaterWaveAngularWaveVectors[i]
                       * WaterWaveAngularFrequencies[i] * WaterWaveAmplitudes[i]
-                      * pow((sin(trigTerm) + 1.0) * 0.5, WaterWaveExponents[i] - 1.0)
-                      * cos(trigTerm);
+                      * pow((sin(phase) + 1.0) * 0.5, WaterWaveExponents[i] - 1.0) * cos(phase);
     }
     return normalize(vec3(-derivative.x, 1.0, -derivative.y));
 }

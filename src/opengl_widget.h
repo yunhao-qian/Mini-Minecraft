@@ -56,15 +56,17 @@ private:
     PlayerController _playerController;
 
     ShaderProgram _shadowDepthProgram;
+    ShaderProgram _shadowMapBlurProgram;
     ShaderProgram _geometryProgram;
     ShaderProgram _lightingProgram;
     ArrayTexture2D _colorTexture;
     ArrayTexture2D _normalTexture;
     ShadowMapFramebuffer _shadowMapFramebuffer;
+    ShadowMapFramebuffer _intermediateShadowMapFramebuffer;
     Framebuffer _opaqueGeometryFramebuffer;
     Framebuffer _translucentGeometryFramebuffer;
 
-    GLuint _lightingVAO;
+    GLuint _quadVAO;
 };
 
 } // namespace minecraft

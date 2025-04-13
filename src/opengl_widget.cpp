@@ -8,6 +8,7 @@
 #include <QThreadPool>
 #include <QtCore/qthreadpool.h>
 
+#include <initializer_list>
 #include <mutex>
 #include <ranges>
 
@@ -22,14 +23,16 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
     , _shadowDepthProgram{this}
+    , _shadowMapBlurProgram{this}
     , _geometryProgram{this}
     , _lightingProgram{this}
     , _colorTexture{this}
     , _normalTexture{this}
     , _shadowMapFramebuffer{this}
+    , _intermediateShadowMapFramebuffer{this}
     , _opaqueGeometryFramebuffer{this}
     , _translucentGeometryFramebuffer{this}
-    , _lightingVAO{0u}
+    , _quadVAO{0u}
 {
     // Allows the widget to accept focus for keyboard input.
     setFocusPolicy(Qt::StrongFocus);
@@ -40,7 +43,7 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
 
 OpenGLWidget::~OpenGLWidget()
 {
-    glDeleteVertexArrays(1, &_lightingVAO);
+    glDeleteVertexArrays(1, &_quadVAO);
     debugError();
 
     // Worker threads may be still writing to members of this class. Wait them to finish to avoid
@@ -61,9 +64,21 @@ void OpenGLWidget::initializeGL()
     // Blending is disabled by default. We do not need it because we will composite the opaque and
     // translucent contents manually.
 
+    // The only place that uses the clear color is the shadow map framebuffer, where the R channel
+    // stores the depth, and the G channel stores the squared depth.
+    glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
+    debugError();
+
     _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
                                {":/shaders/shadow_depth.frag.glsl"},
                                {"u_shadowViewMatrix", "u_shadowProjectionMatrix"});
+
+    _shadowMapBlurProgram.create({":/shaders/quad.vert.glsl"},
+                                 {":/shaders/shadow_map_blur.frag.glsl"},
+                                 {"u_isVerticalBlur",
+                                  "u_blurRadius",
+                                  "u_shadowDepthTexture",
+                                  "u_shadowMapCascadeIndex"});
 
     _geometryProgram.create({":/shaders/block_type.glsl",
                              ":/shaders/block_face.glsl",
@@ -78,7 +93,7 @@ void OpenGLWidget::initializeGL()
                              "u_colorTexture",
                              "u_normalTexture"});
 
-    _lightingProgram.create({":/shaders/lighting.vert.glsl"},
+    _lightingProgram.create({":/shaders/quad.vert.glsl"},
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
                             {"u_viewMatrixInverse",
                              "u_projectionMatrixInverse",
@@ -97,8 +112,9 @@ void OpenGLWidget::initializeGL()
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
-    // The shadow map framebuffer has a fixed size and does not resize with the viewport.
+    // The shadow map framebuffers have a fixed size and do not resize with the viewport.
     _shadowMapFramebuffer.resizeViewport(4096, 4096);
+    _intermediateShadowMapFramebuffer.resizeViewport(4096, 4096);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -108,6 +124,9 @@ void OpenGLWidget::initializeGL()
     debugError();
     glBindTexture(GL_TEXTURE_2D_ARRAY, _normalTexture.texture());
     debugError();
+
+    _shadowMapBlurProgram.use();
+    _shadowMapBlurProgram.setUniform("u_shadowDepthTexture", 2);
 
     _geometryProgram.use();
     _geometryProgram.setUniform("u_colorTexture", 0);
@@ -122,9 +141,9 @@ void OpenGLWidget::initializeGL()
     _lightingProgram.setUniform("u_translucentAlbedoTexture", 7);
     _lightingProgram.setUniform("u_translucentDepthTexture", 8);
 
-    // The lighting pass does not need any vertex, index, or instance data, but we need a dummy VAO
-    // for it.
-    glGenVertexArrays(1, &_lightingVAO);
+    // The shadow map blur and lighting passes does not need any vertex, index, or instance data,
+    // but we need a dummy VAO for them.
+    glGenVertexArrays(1, &_quadVAO);
     debugError();
 }
 
@@ -189,10 +208,49 @@ void OpenGLWidget::paintGL()
         }
     }
 
+    glDisable(GL_DEPTH_TEST);
+    debugError();
+
+    _shadowMapBlurProgram.use();
+    {
+        glm::vec2 blurRadii[ShadowMapCamera::CascadeCount];
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+            blurRadii[cascadeIndex] = shadowMapCamera.getBlurRadius(cascadeIndex);
+        }
+
+        for (const auto isVerticalBlur : {false, true}) {
+            const auto &inputFramebuffer{isVerticalBlur ? _intermediateShadowMapFramebuffer
+                                                        : _shadowMapFramebuffer};
+            const auto &outputFramebuffer{isVerticalBlur ? _shadowMapFramebuffer
+                                                         : _intermediateShadowMapFramebuffer};
+
+            glActiveTexture(GL_TEXTURE2);
+            debugError();
+            glBindTexture(GL_TEXTURE_2D_ARRAY, inputFramebuffer.depthTexture());
+            debugError();
+
+            _shadowMapBlurProgram.setUniform("u_isVerticalBlur", static_cast<GLint>(isVerticalBlur));
+
+            for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+                const auto blurRadius{blurRadii[cascadeIndex][static_cast<int>(isVerticalBlur)]};
+                _shadowMapBlurProgram.setUniform("u_blurRadius", blurRadius);
+                _shadowMapBlurProgram.setUniform("u_shadowMapCascadeIndex", cascadeIndex);
+
+                outputFramebuffer.bind(cascadeIndex);
+                debugError();
+                glBindVertexArray(_quadVAO);
+                debugError();
+                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+                debugError();
+            }
+        }
+    }
+
     glActiveTexture(GL_TEXTURE2);
     debugError();
     glBindTexture(GL_TEXTURE_2D_ARRAY, _shadowMapFramebuffer.depthTexture());
     debugError();
+
     bindTextures({
         {GL_TEXTURE3, _opaqueGeometryFramebuffer.normalTexture()},
         {GL_TEXTURE4, _opaqueGeometryFramebuffer.albedoTexture()},
@@ -227,9 +285,7 @@ void OpenGLWidget::paintGL()
     // Unnecessary, but set the viewport size for clarity.
     glViewport(0, 0, _opaqueGeometryFramebuffer.width(), _opaqueGeometryFramebuffer.height());
     debugError();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    debugError();
-    glBindVertexArray(_lightingVAO);
+    glBindVertexArray(_quadVAO);
     debugError();
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     debugError();
@@ -245,6 +301,9 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE7, 0u},
         {GL_TEXTURE8, 0u},
     });
+
+    glEnable(GL_DEPTH_TEST);
+    debugError();
 }
 
 void OpenGLWidget::resizeGL([[maybe_unused]] const int width, [[maybe_unused]] const int height)

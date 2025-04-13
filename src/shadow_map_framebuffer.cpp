@@ -24,12 +24,12 @@ void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
     _context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
                            0,
-                           GL_R32F,
+                           GL_RG32F,
                            width,
                            height,
                            ShadowMapCamera::CascadeCount,
                            0,
-                           GL_RED,
+                           GL_RG,
                            GL_FLOAT,
                            nullptr);
     _context->debugError();
@@ -85,7 +85,7 @@ void ShadowMapFramebuffer::releaseResources()
     _depthRenderbuffer = 0;
 }
 
-void ShadowMapFramebuffer::setTextureLayer(const int cascadeIndex)
+void ShadowMapFramebuffer::setTextureLayer(const int cascadeIndex) const
 {
     _context->glFramebufferTextureLayer(GL_FRAMEBUFFER,
                                         GL_COLOR_ATTACHMENT0,
