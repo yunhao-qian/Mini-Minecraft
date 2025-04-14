@@ -24,7 +24,18 @@ struct FragmentProperties
     vec4 albedo;
     float depth;
     float lightIntensity;
+    vec3 direction;
 };
+
+vec3 linearColorFromSRGB(vec3 color)
+{
+    return pow(color, vec3(2.2));
+}
+
+vec3 linearColorToSRGB(vec3 color)
+{
+    return pow(color, vec3(1.0 / 2.2));
+}
 
 const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
 
@@ -42,6 +53,7 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
     }
 
     properties.albedo = texture(albedoTexture, v_textureCoords);
+    properties.albedo.rgb = linearColorFromSRGB(properties.albedo.rgb);
     properties.depth = texture(depthTexture, v_textureCoords).r;
 
     vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
@@ -83,28 +95,64 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
 
     properties.lightIntensity = diffuseTerm + ambientTerm;
 
+    properties.direction = normalize(vec3(u_viewMatrixInverse * vec4(viewSpacePosition.xyz, 0.0)));
+
     return properties;
 }
 
-const vec3 SkyColor = vec3(0.37, 0.74, 1.0);
+vec3 getBeerLambertColor(vec3 color, float depth, vec3 attenuationRate, vec3 environmentColor)
+{
+    return mix(environmentColor, color, clamp(exp(-depth * attenuationRate), 0.0, 1.0));
+}
 
-vec3 getAttenuatedColor(vec3 color, float depth, int mediumType)
+vec3 getAtmosphericScatteredColor(vec3 color, float depth, vec3 direction)
+{
+    // Reference:
+    // https://drivers.amd.com/developer/gdc/GDC02_HoffmanPreetham.pdf
+
+    const float Pi = 3.14159265358979323846;
+    const vec3 BetaR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
+    const vec3 BetaM = vec3(21e-6, 21e-6, 21e-6);
+    const float G = 0.76;
+    const vec3 ESun = vec3(10.0, 10.0, 10.0);
+
+    float cosTheta = dot(direction, LightDirection);
+
+    vec3 betaRTheta = 3.0 / (16.0 * Pi) * BetaR * (1.0 + cosTheta * cosTheta);
+    vec3 betaMTheta = 1.0 / (4.0 * Pi) * BetaM * (1.0 - G) * (1.0 - G)
+                      / pow(1.0 + G * G - 2.0 * G * cosTheta, 1.5);
+    vec3 extinctionFactor = exp(-(BetaR + BetaM) * depth);
+    vec3 radianceIn = (betaRTheta + betaMTheta) / (BetaR + BetaM) * ESun * (1.0 - extinctionFactor);
+    return color * extinctionFactor + radianceIn;
+}
+
+vec3 getAttenuatedColor(int mediumType, vec3 color, float depth, vec3 direction)
 {
     vec3 attenuationRate;
     vec3 environmentColor;
     if (mediumType == BlockTypeWater) {
         color *= vec3(0.6, 0.8, 1.0);
-        attenuationRate = vec3(0.12, 0.08, 0.04);
-        environmentColor = vec3(0.15, 0.2, 0.25);
-    } else if (mediumType == BlockTypeLava) {
-        color *= vec3(0.6, 0.3, 0.0);
-        attenuationRate = vec3(0.04, 0.16, 0.24);
-        environmentColor = vec3(1.0, 0.4, 0.0);
-    } else {
-        attenuationRate = vec3(0.002, 0.002, 0.002);
-        environmentColor = SkyColor;
+        return getBeerLambertColor(color, depth, vec3(0.12, 0.08, 0.04), vec3(0.15, 0.2, 0.25));
     }
-    return mix(environmentColor, color, clamp(exp(-depth * attenuationRate), 0.0, 1.0));
+    if (mediumType == BlockTypeLava) {
+        color *= vec3(0.6, 0.3, 0.0);
+        return getBeerLambertColor(color, depth, vec3(0.04, 0.16, 0.24), vec3(1.0, 0.4, 0.0));
+    }
+    // Hack: Scale the depth to make the atmospheric scattering more visible.
+    return getAtmosphericScatteredColor(color, depth * 10.0, direction);
+}
+
+vec3 toneMapACES(vec3 color)
+{
+    // ACES filmic tone mapping curve:
+    // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+
+    const float A = 2.51;
+    const float B = 0.03;
+    const float C = 2.43;
+    const float D = 0.59;
+    const float E = 0.14;
+    return (color * (A * color + B)) / (color * (C * color + D) + E);
 }
 
 void main()
@@ -116,20 +164,30 @@ void main()
                                                                      u_translucentAlbedoTexture,
                                                                      u_translucentDepthTexture);
 
-    float farDepth = opaqueProperties.depth;
-    vec3 farColor;
     int farMediumType;
+    vec3 farColor;
+    float farDepth;
     if (opaqueProperties.depth >= 1e4) {
-        farColor = SkyColor;
+        if (dot(opaqueProperties.direction, LightDirection) >= cos(0.02)) {
+            // Draw a round disc to simulate the sun. Note that this is much larger than the actual
+            // sun.
+            farColor = vec3(10.0, 10.0, 10.0);
+        } else {
+            farColor = vec3(0.0, 0.0, 0.0);
+        }
+        farColor = vec3(0.0, 0.0, 0.0);
         farMediumType = BlockTypeAir;
+        // For sky areas, use this depth for atmospheric scattering.
+        farDepth = 1e4;
     } else {
         farColor = opaqueProperties.albedo.rgb * opaqueProperties.lightIntensity;
         farMediumType = opaqueProperties.mediumType;
+        farDepth = opaqueProperties.depth;
     }
 
-    float nearDepth;
-    vec4 nearColor;
     int nearMediumType;
+    vec4 nearColor;
+    float nearDepth;
     if (translucentProperties.depth >= opaqueProperties.depth) {
         nearDepth = 0.0;
         nearColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -140,8 +198,15 @@ void main()
         nearMediumType = translucentProperties.mediumType;
     }
 
-    vec3 finalColor = getAttenuatedColor(farColor, farDepth - nearDepth, farMediumType);
-    finalColor = mix(finalColor, nearColor.rgb, nearColor.a);
-    finalColor = getAttenuatedColor(finalColor, nearDepth, nearMediumType);
-    f_color = vec4(finalColor, 1.0);
+    vec3 compositeColor = getAttenuatedColor(farMediumType,
+                                             farColor,
+                                             farDepth - nearDepth,
+                                             opaqueProperties.direction);
+    compositeColor = mix(compositeColor, nearColor.rgb, nearColor.a);
+    compositeColor = getAttenuatedColor(nearMediumType,
+                                        compositeColor,
+                                        nearDepth,
+                                        translucentProperties.direction);
+
+    f_color = vec4(linearColorToSRGB(toneMapACES(compositeColor)), 1.0);
 }

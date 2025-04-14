@@ -158,7 +158,7 @@ void OpenGLWidget::paintGL()
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
-        shadowMapCamera.update(glm::vec3{1.5f, 1.0f, 2.0f}, camera);
+        shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), camera);
         viewMatrix = camera.pose().viewMatrix();
         projectionMatrix = camera.projectionMatrix();
         cameraPosition = camera.pose().position();
