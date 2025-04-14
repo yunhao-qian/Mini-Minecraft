@@ -104,6 +104,9 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
     } else {
         const float WaterN = 1.33; // Refractive index
 
+        // Discard water's texture color as it is unsuitable for the current lighting model.
+        albedo = vec3(0.4, 0.6, 0.8);
+
         float cosTheta = dot(-worldSpaceDirection, normal);
         vec3 lightColor = ambientLightColor;
         float incomingN;
@@ -166,7 +169,7 @@ vec3 getAttenuatedColor(int mediumType, vec3 color, float depth, vec3 direction)
 {
     if (mediumType == BlockTypeWater) {
         color *= vec3(0.8, 0.8, 1.0);
-        return getBeerLambertColor(color, depth, vec3(0.08, 0.06, 0.01), vec3(0.04, 0.04, 0.12));
+        return getBeerLambertColor(color, depth, vec3(0.20, 0.14, 0.08), vec3(0.06, 0.08, 0.10));
     }
     if (mediumType == BlockTypeLava) {
         color *= vec3(0.6, 0.4, 0.2);

@@ -43,9 +43,7 @@ void main()
 
     v_textureIndex = a_textureIndex;
     v_textureCoords = vec2(textureCoords);
-    if (a_blockType == BlockTypeWater) {
-        v_textureCoords += randomOffset(8.0);
-    } else if (a_blockType == BlockTypeLava) {
+    if (a_blockType == BlockTypeLava) {
         v_textureCoords += randomOffset(4.0);
     }
 
