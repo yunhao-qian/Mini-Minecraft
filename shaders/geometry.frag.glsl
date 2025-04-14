@@ -37,7 +37,7 @@ void main()
         f_normal = vec4(v_normal, 1.0);
     }
 
-    f_albedo = texture(u_colorTexture, textureCoords);
+    f_albedo.rgb = texture(u_colorTexture, textureCoords).rgb;
 
     // The medium types of the front and back faces may differ, so we determine the actual medium
     // type from the camera's perspective.
@@ -55,7 +55,9 @@ void main()
         actualMediumType = BlockTypeAir;
     }
 
-    // The medium type is used in the lighting pass, but it is not worth allocating an additional
-    // texture. Instead, we store it in the unused alpha channel of the normal output.
-    f_normal.a = blockTypeToFloat(actualMediumType);
+    // The block and medium types are used in the lighting pass, but they are not worth allocating
+    // additional textures. Instead, we store them in the unused alpha channels of the normal and
+    // albedo outputs.
+    f_normal.a = blockTypeToFloat(v_blockType);
+    f_albedo.a = blockTypeToFloat(actualMediumType);
 }

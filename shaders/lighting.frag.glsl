@@ -18,15 +18,6 @@ in vec2 v_textureCoords;
 
 out vec4 f_color;
 
-struct FragmentProperties
-{
-    int mediumType;
-    vec4 albedo;
-    float depth;
-    float lightIntensity;
-    vec3 direction;
-};
-
 vec3 linearColorFromSRGB(vec3 color)
 {
     return pow(color, vec3(2.2));
@@ -37,33 +28,45 @@ vec3 linearColorToSRGB(vec3 color)
     return pow(color, vec3(1.0 / 2.2));
 }
 
-const vec3 LightDirection = normalize(vec3(1.5, 1.0, 2.0));
+const vec3 SunDirection = normalize(vec3(1.5, 1.0, 2.0));
+
+vec3 getDirectionalLightColor(vec3 direction)
+{
+    float intensity = max(dot(direction, SunDirection), 0.0);
+    return vec3(1.0, 1.0, 1.0) * intensity;
+}
+
+struct FragmentProperties
+{
+    int mediumType;
+    float depth;
+    vec4 color;
+};
 
 FragmentProperties getFragmentProperties(sampler2D normalTexture,
                                          sampler2D albedoTexture,
-                                         sampler2D depthTexture)
+                                         sampler2D depthTexture,
+                                         vec3 viewSpaceDirection,
+                                         vec3 worldSpaceDirection)
 {
     FragmentProperties properties;
-
     vec3 normal;
+    int blockType;
     {
         vec4 normalData = texture(normalTexture, v_textureCoords);
         normal = normalize(normalData.xyz);
-        properties.mediumType = blockTypeFromFloat(normalData.a);
+        blockType = blockTypeFromFloat(normalData.w);
     }
-
-    properties.albedo = texture(albedoTexture, v_textureCoords);
-    properties.albedo.rgb = linearColorFromSRGB(properties.albedo.rgb);
+    vec3 albedo;
+    {
+        vec4 albedoData = texture(albedoTexture, v_textureCoords);
+        albedo = linearColorFromSRGB(albedoData.rgb);
+        properties.mediumType = blockTypeFromFloat(albedoData.a);
+    }
     properties.depth = texture(depthTexture, v_textureCoords).r;
 
-    vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
-    vec4 viewSpacePosition = u_projectionMatrixInverse * clipSpacePosition;
-    viewSpacePosition.xyz *= properties.depth / length(viewSpacePosition.xyz);
-    viewSpacePosition.w = 1.0;
+    vec4 viewSpacePosition = vec4(viewSpaceDirection * properties.depth, 1.0);
     vec4 worldSpacePosition = u_viewMatrixInverse * viewSpacePosition;
-
-    float diffuseTerm = max(dot(normal, LightDirection), 0.0);
-    float ambientTerm = 0.2;
 
     // Compute the cascade index based on the logarithmic split scheme.
     float viewSpaceZ = clamp(viewSpacePosition.z, -u_cameraFar, -u_cameraNear);
@@ -74,9 +77,10 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
     vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex] * worldSpacePosition;
     vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
                                    * shadowViewSpacePosition;
-    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz * (0.5 / shadowClipSpacePosition.w)
-                                     + 0.5;
+    shadowClipSpacePosition /= shadowClipSpacePosition.w;
+    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz * 0.5 + 0.5;
 
+    float nonOccludedProbability = 1.0;
     if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
         && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0)))) {
         vec4 depthData = texture(u_shadowDepthTexture,
@@ -86,15 +90,48 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
 
         float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 2e-5);
         float depthDifference = max(-shadowViewSpacePosition.z - shadowDepth, 0.0);
-        float probability = depthVariance / (depthVariance + depthDifference * depthDifference);
+        nonOccludedProbability = depthVariance
+                                 / (depthVariance + depthDifference * depthDifference);
         // Rescale the probability to reduce light-bleeding artifacts.
-        probability = (probability - 0.2) / 0.8;
-        diffuseTerm *= clamp(probability, 0.0, 1.0);
+        nonOccludedProbability = clamp((nonOccludedProbability - 0.2) / 0.8, 0.0, 1.0);
     }
 
-    properties.lightIntensity = diffuseTerm + ambientTerm;
+    vec3 ambientLightColor = vec3(0.2, 0.2, 0.2);
+    if (blockType != BlockTypeWater) {
+        vec3 lightColor = ambientLightColor
+                          + getDirectionalLightColor(normal) * nonOccludedProbability;
+        properties.color = vec4(lightColor * albedo, 1.0);
+    } else {
+        const float WaterN = 1.33; // Refractive index
 
-    properties.direction = normalize(vec3(u_viewMatrixInverse * vec4(viewSpacePosition.xyz, 0.0)));
+        float cosTheta = dot(-worldSpaceDirection, normal);
+        vec3 lightColor = ambientLightColor;
+        float incomingN;
+        float outgoingN;
+        if (cosTheta < 0.0) {
+            // Under water
+            normal = -normal;
+            cosTheta = -cosTheta;
+
+            lightColor += vec3(0.1, 0.1, 0.1);
+            incomingN = WaterN;
+            outgoingN = 1.0;
+        } else {
+            // Above water
+            vec3 reflectedDirection = reflect(worldSpaceDirection, normal);
+            lightColor += getDirectionalLightColor(reflectedDirection) * nonOccludedProbability;
+            incomingN = 1.0;
+            outgoingN = WaterN;
+        }
+        properties.color.rgb = lightColor * albedo;
+
+        // Schlick's approximation:
+        // https://en.wikipedia.org/wiki/Schlick%27s_approximation
+        float r0 = (incomingN - outgoingN) / (incomingN + outgoingN);
+        r0 *= r0;
+        float rTheta = r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5.0);
+        properties.color.a = clamp(rTheta, 0.0, 1.0);
+    }
 
     return properties;
 }
@@ -115,7 +152,7 @@ vec3 getAtmosphericScatteredColor(vec3 color, float depth, vec3 direction)
     const float G = 0.76;
     const vec3 ESun = vec3(10.0, 10.0, 10.0);
 
-    float cosTheta = dot(direction, LightDirection);
+    float cosTheta = dot(direction, SunDirection);
 
     vec3 betaRTheta = 3.0 / (16.0 * Pi) * BetaR * (1.0 + cosTheta * cosTheta);
     vec3 betaMTheta = 1.0 / (4.0 * Pi) * BetaM * (1.0 - G) * (1.0 - G)
@@ -127,11 +164,9 @@ vec3 getAtmosphericScatteredColor(vec3 color, float depth, vec3 direction)
 
 vec3 getAttenuatedColor(int mediumType, vec3 color, float depth, vec3 direction)
 {
-    vec3 attenuationRate;
-    vec3 environmentColor;
     if (mediumType == BlockTypeWater) {
-        color *= vec3(0.6, 0.8, 1.0);
-        return getBeerLambertColor(color, depth, vec3(0.06, 0.04, 0.01), vec3(0.06, 0.08, 0.12));
+        color *= vec3(0.8, 0.8, 1.0);
+        return getBeerLambertColor(color, depth, vec3(0.08, 0.06, 0.01), vec3(0.04, 0.04, 0.12));
     }
     if (mediumType == BlockTypeLava) {
         color *= vec3(0.6, 0.4, 0.2);
@@ -156,18 +191,32 @@ vec3 toneMapACES(vec3 color)
 
 void main()
 {
+    vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
+    vec4 viewSpacePosition = u_projectionMatrixInverse * clipSpacePosition;
+    vec3 viewSpaceDirection = normalize(viewSpacePosition.xyz);
+    vec3 worldSpaceDirection = (u_viewMatrixInverse * vec4(viewSpaceDirection, 0.0)).xyz;
+
     FragmentProperties opaqueProperties = getFragmentProperties(u_opaqueNormalTexture,
                                                                 u_opaqueAlbedoTexture,
-                                                                u_opaqueDepthTexture);
+                                                                u_opaqueDepthTexture,
+                                                                viewSpaceDirection,
+                                                                worldSpaceDirection);
     FragmentProperties translucentProperties = getFragmentProperties(u_translucentNormalTexture,
                                                                      u_translucentAlbedoTexture,
-                                                                     u_translucentDepthTexture);
+                                                                     u_translucentDepthTexture,
+                                                                     viewSpaceDirection,
+                                                                     worldSpaceDirection);
 
     int farMediumType;
     vec3 farColor;
     float farDepth;
-    if (opaqueProperties.depth >= 1e4) {
-        if (dot(opaqueProperties.direction, LightDirection) >= cos(0.02)) {
+    if (opaqueProperties.depth < 1e4) {
+        farMediumType = opaqueProperties.mediumType;
+        farColor = opaqueProperties.color.rgb;
+        farDepth = opaqueProperties.depth;
+    } else {
+        // The sky is not written to in the geometry pass, so we modify the properties manually.
+        if (dot(worldSpaceDirection, SunDirection) >= cos(0.02)) {
             // Draw a round disc to simulate the sun. Note that this is much larger than the actual
             // sun.
             farColor = vec3(10.0, 10.0, 10.0);
@@ -176,36 +225,33 @@ void main()
         }
         farColor = vec3(0.0, 0.0, 0.0);
         farMediumType = BlockTypeAir;
-        // For sky areas, use this depth for atmospheric scattering.
         farDepth = 1e4;
-    } else {
-        farColor = opaqueProperties.albedo.rgb * opaqueProperties.lightIntensity;
-        farMediumType = opaqueProperties.mediumType;
-        farDepth = opaqueProperties.depth;
     }
 
     int nearMediumType;
     vec4 nearColor;
     float nearDepth;
     if (translucentProperties.depth >= opaqueProperties.depth) {
+        // No translucent fragment is visible.
         nearDepth = 0.0;
         nearColor = vec4(0.0, 0.0, 0.0, 0.0);
         nearMediumType = BlockTypeAir;
     } else {
         nearDepth = translucentProperties.depth;
-        nearColor = translucentProperties.albedo * translucentProperties.lightIntensity;
+        nearColor = translucentProperties.color;
         nearMediumType = translucentProperties.mediumType;
     }
 
-    vec3 compositeColor = getAttenuatedColor(farMediumType,
-                                             farColor,
-                                             farDepth - nearDepth,
-                                             opaqueProperties.direction);
+    vec3 compositeColor = farColor;
+    compositeColor = getAttenuatedColor(farMediumType,
+                                        compositeColor,
+                                        farDepth - nearDepth,
+                                        worldSpaceDirection);
     compositeColor = mix(compositeColor, nearColor.rgb, nearColor.a);
     compositeColor = getAttenuatedColor(nearMediumType,
                                         compositeColor,
                                         nearDepth,
-                                        translucentProperties.direction);
+                                        worldSpaceDirection);
 
     f_color = vec4(linearColorToSRGB(toneMapACES(compositeColor)), 1.0);
 }
