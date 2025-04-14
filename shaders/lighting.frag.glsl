@@ -78,13 +78,13 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
     vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
                                    * shadowViewSpacePosition;
     shadowClipSpacePosition /= shadowClipSpacePosition.w;
-    vec3 shadowScreenSpacePosition = shadowClipSpacePosition.xyz * 0.5 + 0.5;
+    vec2 shadowScreenSpacePosition = shadowClipSpacePosition.xy * 0.5 + 0.5;
 
     float nonOccludedProbability = 1.0;
-    if (all(greaterThanEqual(shadowScreenSpacePosition, vec3(0.0, 0.0, 0.0)))
-        && all(lessThanEqual(shadowScreenSpacePosition, vec3(1.0, 1.0, 1.0)))) {
+    if (all(greaterThanEqual(shadowScreenSpacePosition, vec2(0.0, 0.0)))
+        && all(lessThanEqual(shadowScreenSpacePosition, vec2(1.0, 1.0)))) {
         vec4 depthData = texture(u_shadowDepthTexture,
-                                 vec3(shadowScreenSpacePosition.xy, float(cascadeIndex)));
+                                 vec3(shadowScreenSpacePosition, float(cascadeIndex)));
         float shadowDepth = depthData.r;
         float shadowDepthSquared = depthData.g;
 

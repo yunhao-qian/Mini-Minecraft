@@ -2,6 +2,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <ranges>
@@ -61,6 +62,16 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
         // Add a small margin to the bounding box.
         minPoint -= 1.0f;
         maxPoint += 1.0f;
+
+        // Rescale the Z dimension to fit shadow-casting objects outside the camera's view frustum.
+        // This does not have a large impact on the shadow map's precision as another unscaled depth
+        // buffer is used for shadow mapping.
+        {
+            const auto middleZ{(minPoint.z + maxPoint.z) * 0.5f};
+            const auto halfZScale{std::max((maxPoint.z - minPoint.z) * 0.5f, 128.0f)};
+            minPoint.z = middleZ - halfZScale;
+            maxPoint.z = middleZ + halfZScale;
+        }
 
         // Shift the Z values to ensure they are always negative.
         auto &shadowViewMatrix{_viewMatrices[cascadeIndex]};
