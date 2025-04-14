@@ -84,13 +84,12 @@ FragmentProperties getFragmentProperties(sampler2D normalTexture,
         float shadowDepth = depthData.r;
         float shadowDepthSquared = depthData.g;
 
-        float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 1e-6);
+        float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 2e-5);
         float depthDifference = max(-shadowViewSpacePosition.z - shadowDepth, 0.0);
-        float probability = clamp(depthVariance
-                                      / (depthVariance + depthDifference * depthDifference),
-                                  0.0,
-                                  1.0);
-        diffuseTerm *= probability;
+        float probability = depthVariance / (depthVariance + depthDifference * depthDifference);
+        // Rescale the probability to reduce light-bleeding artifacts.
+        probability = (probability - 0.2) / 0.8;
+        diffuseTerm *= clamp(probability, 0.0, 1.0);
     }
 
     properties.lightIntensity = diffuseTerm + ambientTerm;
@@ -132,11 +131,11 @@ vec3 getAttenuatedColor(int mediumType, vec3 color, float depth, vec3 direction)
     vec3 environmentColor;
     if (mediumType == BlockTypeWater) {
         color *= vec3(0.6, 0.8, 1.0);
-        return getBeerLambertColor(color, depth, vec3(0.12, 0.08, 0.04), vec3(0.15, 0.2, 0.25));
+        return getBeerLambertColor(color, depth, vec3(0.06, 0.04, 0.01), vec3(0.06, 0.08, 0.12));
     }
     if (mediumType == BlockTypeLava) {
-        color *= vec3(0.6, 0.3, 0.0);
-        return getBeerLambertColor(color, depth, vec3(0.04, 0.16, 0.24), vec3(1.0, 0.4, 0.0));
+        color *= vec3(0.6, 0.4, 0.2);
+        return getBeerLambertColor(color, depth, vec3(0.01, 0.04, 0.06), vec3(1.0, 0.2, 0.0));
     }
     // Hack: Scale the depth to make the atmospheric scattering more visible.
     return getAtmosphericScatteredColor(color, depth * 10.0, direction);

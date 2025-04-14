@@ -64,9 +64,9 @@ void OpenGLWidget::initializeGL()
     // Blending is disabled by default. We do not need it because we will composite the opaque and
     // translucent contents manually.
 
-    // The only place that uses the clear color is the shadow map framebuffer, where the R channel
-    // stores the depth, and the G channel stores the squared depth.
-    glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
+    // The only place that uses the clear color is the depth textures of the shadow map and geometry
+    // passes, where the R channel stores the depth and the G channel stores the squared depth.
+    glClearColor(1e4f, 1e8f, 0.0f, 0.0f);
     debugError();
 
     _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
