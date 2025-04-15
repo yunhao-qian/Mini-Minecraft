@@ -39,8 +39,8 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
 
     for (const auto cascadeIndex : std::views::iota(0, CascadeCount)) {
         constexpr auto Infinity{std::numeric_limits<float>::infinity()};
-        glm::vec3 minPoint{Infinity, Infinity, Infinity};
-        glm::vec3 maxPoint{-Infinity, -Infinity, -Infinity};
+        glm::vec3 minPoint{Infinity};
+        glm::vec3 maxPoint{-Infinity};
 
         for (const auto clipSpaceX : {-1.0f, 1.0f}) {
             for (const auto clipSpaceY : {-1.0f, 1.0f}) {
@@ -89,7 +89,7 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
 
 glm::vec2 ShadowMapCamera::getBlurRadius(const int cascadeIndex) const
 {
-    const glm::vec2 viewSpaceRadius{0.5f, 0.5f};
+    const glm::vec2 viewSpaceRadius{0.5f};
     const auto &projectionMatrix{_projectionMatrices[cascadeIndex]};
     const auto clipSpaceRadius{viewSpaceRadius
                                * glm::vec2{projectionMatrix[0][0], projectionMatrix[1][1]}};

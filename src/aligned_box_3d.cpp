@@ -21,14 +21,14 @@ bool AlignedBox3D::sweep(const glm::vec3 &velocity,
         if (velocity[i] > 0.0f) {
             if (const auto axisMinTime{minDisplacement[i] / velocity[i]}; axisMinTime > minTime) {
                 minTime = axisMinTime;
-                firstHitNormal = {0.0f, 0.0f, 0.0f};
+                firstHitNormal = glm::vec3{0.0f};
                 firstHitNormal[i] = 1.0f;
             }
             maxTime = std::min(maxTime, maxDisplacement[i] / velocity[i]);
         } else if (velocity[i] < 0.0f) {
             if (const auto axisMinTime{maxDisplacement[i] / velocity[i]}; axisMinTime > minTime) {
                 minTime = axisMinTime;
-                firstHitNormal = {0.0f, 0.0f, 0.0f};
+                firstHitNormal = glm::vec3{0.0f};
                 firstHitNormal[i] = -1.0f;
             }
             maxTime = std::min(maxTime, minDisplacement[i] / velocity[i]);

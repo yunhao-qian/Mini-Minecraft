@@ -76,11 +76,11 @@ PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
 
     // Fill in dummy data to adjust the window size.
     setPlayerInfo({
-        .position{0.0f, 0.0f, 0.0f},
-        .velocity{0.0f, 0.0f, 0.0f},
-        .acceleration{0.0f, 0.0f, 0.0f},
+        .position{0.0f},
+        .velocity{0.0f},
+        .acceleration{0.0f},
         .lookVector{0.0f, 0.0f, -1.0f},
-        .chunk{0, 0},
+        .chunk{0},
         .terrainZone = 0,
     });
     adjustSize();

@@ -43,10 +43,7 @@ private:
 };
 
 inline Player::Player(const Pose &pose)
-    : Entity{pose.position(),
-             glm::vec3{0.0f, 0.0f, 0.0f},
-             glm::vec3{0.0f, 0.0f, 0.0f},
-             MovementMode::Fly}
+    : Entity{pose.position(), glm::vec3{0.0f}, glm::vec3{0.0f}, MovementMode::Fly}
     , _camera{Pose{}, 1280, 960}
     , _orientation{pose.orientation()}
     , _desiredOrientation{pose.orientation()}

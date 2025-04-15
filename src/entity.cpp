@@ -64,7 +64,7 @@ void Entity::updatePhysics(const float dT, const Terrain &terrain)
 
     // Keep the previous acceleration so that it can be displayed in the UI.
     _previousAcceleration = _acceleration;
-    _acceleration = {0.0f, 0.0f, 0.0f};
+    _acceleration = glm::vec3{0.0f};
 }
 
 void Entity::simulateWithTerrainCollisions(const float dT, const Terrain &terrain)
@@ -78,7 +78,7 @@ void Entity::simulateWithTerrainCollisions(const float dT, const Terrain &terrai
     for ([[maybe_unused]] const auto _ : std::views::iota(0, 6)) {
         auto hasCollision{false};
         auto hitTime{remainingTime};
-        glm::vec3 hitNormal{0.0f, 0.0f, 0.0f};
+        glm::vec3 hitNormal{0.0f};
 
         const auto entityBox{boxCollider()};
         const glm::ivec3 entityMinPoint{glm::floor(

@@ -12,7 +12,7 @@ void main()
     const int HalfNumSamples = 8;
     float offsetStep = u_blurRadius / float(HalfNumSamples);
     float multiplier = 1.0 / float(HalfNumSamples * 2 + 1);
-    f_blurredDepth = vec2(0.0, 0.0);
+    f_blurredDepth = vec2(0.0);
     for (int i = -HalfNumSamples; i <= HalfNumSamples; ++i) {
         float offset = float(i) * offsetStep;
         vec2 sampleCoords = v_textureCoords;

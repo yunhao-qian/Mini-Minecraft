@@ -66,7 +66,7 @@ void OpenGLWidget::initializeGL()
 
     // The only place that uses the clear color is the depth textures of the shadow map and geometry
     // passes, where the R channel stores the depth and the G channel stores the squared depth.
-    glClearColor(1e4f, 1e8f, 0.0f, 0.0f);
+    glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
     debugError();
 
     _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
@@ -95,7 +95,9 @@ void OpenGLWidget::initializeGL()
 
     _lightingProgram.create({":/shaders/quad.vert.glsl"},
                             {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
-                            {"u_viewMatrixInverse",
+                            {"u_viewMatrix",
+                             "u_viewMatrixInverse",
+                             "u_projectionMatrix",
                              "u_projectionMatrixInverse",
                              "u_cameraNear",
                              "u_cameraFar",
@@ -261,7 +263,9 @@ void OpenGLWidget::paintGL()
     });
 
     _lightingProgram.use();
+    _lightingProgram.setUniform("u_viewMatrix", viewMatrix);
     _lightingProgram.setUniform("u_viewMatrixInverse", glm::inverse(viewMatrix));
+    _lightingProgram.setUniform("u_projectionMatrix", projectionMatrix);
     _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
     _lightingProgram.setUniform("u_cameraNear", cameraNear);
     _lightingProgram.setUniform("u_cameraFar", cameraFar);

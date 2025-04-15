@@ -9,7 +9,7 @@ namespace minecraft {
 class Pose
 {
 public:
-    Pose(const glm::vec3 &position = {0.0f, 0.0f, 0.0f});
+    Pose(const glm::vec3 &position = glm::vec3{0.0f});
 
     const glm::vec3 &position() const;
     void setPosition(const glm::vec3 &position);

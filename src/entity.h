@@ -65,7 +65,7 @@ inline Entity::Entity(const glm::vec3 &position,
     , _velocity{velocity}
     , _acceleration{acceleration}
     , _movementMode{movementMode}
-    , _previousAcceleration{0.0f, 0.0f, 0.0f}
+    , _previousAcceleration{0.0f}
 {}
 
 inline const glm::vec3 &Entity::position() const
