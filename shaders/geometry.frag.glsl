@@ -1,14 +1,14 @@
 uniform float u_time;
-uniform vec3 u_cameraPosition;
+uniform mat4 u_viewMatrix;
 uniform sampler2DArray u_colorTexture;
 uniform sampler2DArray u_normalTexture;
 
 in vec3 v_worldSpacePosition;
 flat in int v_textureIndex;
 in vec2 v_textureCoords;
-flat in vec3 v_tangent;
-flat in vec3 v_bitangent;
-flat in vec3 v_normal;
+flat in vec3 v_viewSpaceTangent;
+flat in vec3 v_viewSpaceBitangent;
+flat in vec3 v_viewSpaceNormal;
 flat in int v_blockType;
 flat in int v_mediumType;
 in float v_waterElevation;
@@ -19,29 +19,31 @@ layout(location = 2) out vec4 f_albedo;
 
 void main()
 {
-    f_depth = distance(u_cameraPosition, v_worldSpacePosition);
+    vec3 viewSpacePosition = (u_viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz;
+    f_depth = length(viewSpacePosition);
 
     vec3 textureCoords = vec3(v_textureCoords, float(v_textureIndex));
 
     vec4 textureNormal = texture(u_normalTexture, textureCoords);
-    if (textureNormal.a > 0.5) {
+    if (textureNormal.w > 0.5) {
         // The normal map is available for this texture.
-        mat3 tbnMatrix = mat3(v_tangent, v_bitangent, v_normal);
+        mat3 viewSpaceTBNMatrix = mat3(v_viewSpaceTangent, v_viewSpaceBitangent, v_viewSpaceNormal);
         vec3 tangentSpaceNormal = textureNormal.xyz * 2.0 - 1.0;
         // The x component is somehow inverted in the normal map.
         tangentSpaceNormal.x = -tangentSpaceNormal.x;
-        f_normal = vec4(normalize(tbnMatrix * tangentSpaceNormal), 1.0);
+        f_normal.xyz = normalize(viewSpaceTBNMatrix * tangentSpaceNormal);
     } else if (v_blockType == BlockTypeWater) {
-        f_normal = vec4(getWaterWaveNormal(v_worldSpacePosition.xz, u_time), 1.0);
+        f_normal.xyz
+            = (u_viewMatrix * vec4(getWaterWaveNormal(v_worldSpacePosition.xz, u_time), 0.0)).xyz;
     } else {
-        f_normal = vec4(v_normal, 1.0);
+        f_normal.xyz = v_viewSpaceNormal;
     }
 
     f_albedo.rgb = texture(u_colorTexture, textureCoords).rgb;
 
     // The medium types of the front and back faces may differ, so we determine the actual medium
     // type from the camera's perspective.
-    bool isFrontFace = dot(v_normal, u_cameraPosition - v_worldSpacePosition) > 0.0;
+    bool isFrontFace = dot(v_viewSpaceNormal, viewSpacePosition) < 0.0;
     int actualMediumType;
     if (isFrontFace) {
         if (v_mediumType == BlockTypeWater && v_worldSpacePosition.y > v_waterElevation) {
@@ -56,8 +58,8 @@ void main()
     }
 
     // The block and medium types are used in the lighting pass, but they are not worth allocating
-    // additional textures. Instead, we store them in the unused alpha channels of the normal and
+    // additional textures. Instead, we store them in the unused w/alpha channels of the normal and
     // albedo outputs.
-    f_normal.a = blockTypeToFloat(v_blockType);
+    f_normal.w = blockTypeToFloat(v_blockType);
     f_albedo.a = blockTypeToFloat(actualMediumType);
 }

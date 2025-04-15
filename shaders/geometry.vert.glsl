@@ -1,5 +1,6 @@
-uniform mat4 u_viewProjectionMatrix;
 uniform float u_time;
+uniform mat4 u_viewMatrix;
+uniform mat4 u_viewProjectionMatrix;
 
 layout(location = 0) in ivec3 a_blockPosition;
 layout(location = 1) in int a_faceIndex;
@@ -10,9 +11,9 @@ layout(location = 4) in int a_mediumType;
 out vec3 v_worldSpacePosition;
 flat out int v_textureIndex;
 out vec2 v_textureCoords;
-flat out vec3 v_tangent;
-flat out vec3 v_bitangent;
-flat out vec3 v_normal;
+flat out vec3 v_viewSpaceTangent;
+flat out vec3 v_viewSpaceBitangent;
+flat out vec3 v_viewSpaceNormal;
 flat out int v_blockType;
 flat out int v_mediumType;
 out float v_waterElevation;
@@ -47,9 +48,9 @@ void main()
         v_textureCoords += randomOffset(4.0);
     }
 
-    v_tangent = vec3(faceTangent);
-    v_bitangent = vec3(faceBitangent);
-    v_normal = FaceNormals[a_faceIndex];
+    v_viewSpaceTangent = (u_viewMatrix * vec4(faceTangent, 0.0)).xyz;
+    v_viewSpaceBitangent = (u_viewMatrix * vec4(faceBitangent, 0.0)).xyz;
+    v_viewSpaceNormal = (u_viewMatrix * vec4(FaceNormals[a_faceIndex], 0.0)).xyz;
 
     v_blockType = a_blockType;
     v_mediumType = a_mediumType;

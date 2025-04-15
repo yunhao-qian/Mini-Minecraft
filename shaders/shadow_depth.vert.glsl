@@ -1,5 +1,5 @@
 uniform mat4 u_shadowViewMatrix;
-uniform mat4 u_shadowProjectionMatrix;
+uniform mat4 u_shadowViewProjectionMatrix;
 
 layout(location = 0) in ivec3 a_blockPosition;
 layout(location = 1) in int a_faceIndex;
@@ -16,10 +16,9 @@ void main()
     vec4 worldSpacePosition = vec4(vec3(faceOrigin + textureCoords.x * faceTangent
                                         + textureCoords.y * faceBitangent),
                                    1.0);
-    vec4 viewSpacePosition = u_shadowViewMatrix * worldSpacePosition;
 
-    v_shadowViewSpaceDepth = -viewSpacePosition.z;
-    gl_Position = u_shadowProjectionMatrix * viewSpacePosition;
+    v_shadowViewSpaceDepth = -(u_shadowViewMatrix * worldSpacePosition).z;
+    gl_Position = u_shadowViewProjectionMatrix * worldSpacePosition;
 
     // Clamping the depth ensures that geometry outside the shadow frustum can still cast shadows,
     // even if their actual depth values fall outside the valid clip space range. This may produce

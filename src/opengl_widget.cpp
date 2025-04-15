@@ -69,47 +69,77 @@ void OpenGLWidget::initializeGL()
     glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
     debugError();
 
-    _shadowDepthProgram.create({":/shaders/block_face.glsl", ":/shaders/shadow_depth.vert.glsl"},
-                               {":/shaders/shadow_depth.frag.glsl"},
-                               {"u_shadowViewMatrix", "u_shadowProjectionMatrix"});
+    _shadowDepthProgram.create(
+        {
+            ":/shaders/block_face.glsl",
+            ":/shaders/shadow_depth.vert.glsl",
+        },
+        {
+            ":/shaders/shadow_depth.frag.glsl",
+        },
+        {
+            "u_shadowViewMatrix",
+            "u_shadowViewProjectionMatrix",
+        });
 
-    _shadowMapBlurProgram.create({":/shaders/quad.vert.glsl"},
-                                 {":/shaders/shadow_map_blur.frag.glsl"},
-                                 {"u_isVerticalBlur",
-                                  "u_blurRadius",
-                                  "u_shadowDepthTexture",
-                                  "u_shadowMapCascadeIndex"});
+    _shadowMapBlurProgram.create(
+        {
+            ":/shaders/quad.vert.glsl",
+        },
+        {
+            ":/shaders/shadow_map_blur.frag.glsl",
+        },
+        {
+            "u_isVerticalBlur",
+            "u_blurRadius",
+            "u_shadowDepthTexture",
+            "u_shadowMapCascadeIndex",
+        });
 
-    _geometryProgram.create({":/shaders/block_type.glsl",
-                             ":/shaders/block_face.glsl",
-                             ":/shaders/water_wave.glsl",
-                             ":/shaders/geometry.vert.glsl"},
-                            {":/shaders/block_type.glsl",
-                             ":/shaders/water_wave.glsl",
-                             ":/shaders/geometry.frag.glsl"},
-                            {"u_viewProjectionMatrix",
-                             "u_time",
-                             "u_cameraPosition",
-                             "u_colorTexture",
-                             "u_normalTexture"});
+    _geometryProgram.create(
+        {
+            ":/shaders/block_type.glsl",
+            ":/shaders/block_face.glsl",
+            ":/shaders/water_wave.glsl",
+            ":/shaders/geometry.vert.glsl",
+        },
+        {
+            ":/shaders/block_type.glsl",
+            ":/shaders/water_wave.glsl",
+            ":/shaders/geometry.frag.glsl",
+        },
+        {
+            "u_time",
+            "u_viewMatrix",
+            "u_viewProjectionMatrix",
+            "u_colorTexture",
+            "u_normalTexture",
+        });
 
-    _lightingProgram.create({":/shaders/quad.vert.glsl"},
-                            {":/shaders/block_type.glsl", ":/shaders/lighting.frag.glsl"},
-                            {"u_viewMatrix",
-                             "u_viewMatrixInverse",
-                             "u_projectionMatrix",
-                             "u_projectionMatrixInverse",
-                             "u_cameraNear",
-                             "u_cameraFar",
-                             "u_shadowViewMatrices",
-                             "u_shadowProjectionMatrices",
-                             "u_shadowDepthTexture",
-                             "u_opaqueNormalTexture",
-                             "u_opaqueAlbedoTexture",
-                             "u_opaqueDepthTexture",
-                             "u_translucentNormalTexture",
-                             "u_translucentAlbedoTexture",
-                             "u_translucentDepthTexture"});
+    _lightingProgram.create(
+        {
+            ":/shaders/quad.vert.glsl",
+        },
+        {
+            ":/shaders/block_type.glsl",
+            ":/shaders/lighting.frag.glsl",
+        },
+        {
+            "u_viewMatrix",
+            "u_projectionMatrix",
+            "u_projectionMatrixInverse",
+            "u_cameraNear",
+            "u_cameraFar",
+            "u_shadowViewMatrices",
+            "u_shadowViewProjectionMatrices",
+            "u_shadowDepthTexture",
+            "u_opaqueNormalTexture",
+            "u_opaqueAlbedoTexture",
+            "u_opaqueDepthTexture",
+            "u_translucentNormalTexture",
+            "u_translucentAlbedoTexture",
+            "u_translucentDepthTexture",
+        });
 
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
@@ -151,6 +181,9 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
+    const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
+                    / 1000.0f};
+
     ShadowMapCamera shadowMapCamera;
     glm::mat4 viewMatrix;
     glm::mat4 projectionMatrix;
@@ -168,8 +201,14 @@ void OpenGLWidget::paintGL()
         cameraFar = camera.far();
     }
 
-    const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
-                    / 1000.0f};
+    glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
+    glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
+    for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+        const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
+        const auto &shadowProjectionMatrix{shadowMapCamera.projectionMatrix(cascadeIndex)};
+        shadowViewMatrices[cascadeIndex] = shadowViewMatrix;
+        shadowViewProjectionMatrices[cascadeIndex] = shadowProjectionMatrix * shadowViewMatrix;
+    }
 
     {
         const std::lock_guard lock{_scene.terrainMutex()};
@@ -177,10 +216,9 @@ void OpenGLWidget::paintGL()
 
         _shadowDepthProgram.use();
         for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-            _shadowDepthProgram.setUniform("u_shadowViewMatrix",
-                                           shadowMapCamera.viewMatrix(cascadeIndex));
-            _shadowDepthProgram.setUniform("u_shadowProjectionMatrix",
-                                           shadowMapCamera.projectionMatrix(cascadeIndex));
+            _shadowDepthProgram.setUniform("u_shadowViewMatrix", shadowViewMatrices[cascadeIndex]);
+            _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix",
+                                           shadowViewProjectionMatrices[cascadeIndex]);
 
             _shadowMapFramebuffer.bind(cascadeIndex);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -191,9 +229,9 @@ void OpenGLWidget::paintGL()
         }
 
         _geometryProgram.use();
-        _geometryProgram.setUniform("u_viewProjectionMatrix", projectionMatrix * viewMatrix);
         _geometryProgram.setUniform("u_time", time);
-        _geometryProgram.setUniform("u_cameraPosition", cameraPosition);
+        _geometryProgram.setUniform("u_viewMatrix", viewMatrix);
+        _geometryProgram.setUniform("u_viewProjectionMatrix", projectionMatrix * viewMatrix);
 
         _opaqueGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -264,25 +302,27 @@ void OpenGLWidget::paintGL()
 
     _lightingProgram.use();
     _lightingProgram.setUniform("u_viewMatrix", viewMatrix);
-    _lightingProgram.setUniform("u_viewMatrixInverse", glm::inverse(viewMatrix));
     _lightingProgram.setUniform("u_projectionMatrix", projectionMatrix);
     _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
     _lightingProgram.setUniform("u_cameraNear", cameraNear);
     _lightingProgram.setUniform("u_cameraFar", cameraFar);
     {
-        glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
-        glm::mat4 shadowProjectionMatrices[ShadowMapCamera::CascadeCount];
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-            shadowViewMatrices[cascadeIndex] = shadowMapCamera.viewMatrix(cascadeIndex);
-            shadowProjectionMatrices[cascadeIndex] = shadowMapCamera.projectionMatrix(cascadeIndex);
+        // In the lighting pass, positions are transformed directly from the camera's view space to
+        // the shadow map's view and clip spaces.
+        const auto viewMatrixInverse{glm::inverse(viewMatrix)};
+        for (auto &shadowViewMatrix : shadowViewMatrices) {
+            shadowViewMatrix = shadowViewMatrix * viewMatrixInverse;
         }
-        _lightingProgram.setUniforms("u_shadowViewMatrices",
-                                     ShadowMapCamera::CascadeCount,
-                                     shadowViewMatrices);
-        _lightingProgram.setUniforms("u_shadowProjectionMatrices",
-                                     ShadowMapCamera::CascadeCount,
-                                     shadowProjectionMatrices);
+        for (auto &shadowViewProjectionMatrix : shadowViewProjectionMatrices) {
+            shadowViewProjectionMatrix = shadowViewProjectionMatrix * viewMatrixInverse;
+        }
     }
+    _lightingProgram.setUniforms("u_shadowViewMatrices",
+                                 ShadowMapCamera::CascadeCount,
+                                 shadowViewMatrices);
+    _lightingProgram.setUniforms("u_shadowViewProjectionMatrices",
+                                 ShadowMapCamera::CascadeCount,
+                                 shadowViewProjectionMatrices);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     debugError();

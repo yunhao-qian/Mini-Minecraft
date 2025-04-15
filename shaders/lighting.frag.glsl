@@ -1,13 +1,12 @@
 const int ShadowMapCascadeCount = 4;
 
 uniform mat4 u_viewMatrix;
-uniform mat4 u_viewMatrixInverse;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_projectionMatrixInverse;
 uniform float u_cameraNear;
 uniform float u_cameraFar;
 uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
-uniform mat4 u_shadowProjectionMatrices[ShadowMapCascadeCount];
+uniform mat4 u_shadowViewProjectionMatrices[ShadowMapCascadeCount];
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
@@ -30,36 +29,35 @@ vec3 linearColorToSRGB(vec3 color)
     return pow(color, vec3(1.0 / 2.2));
 }
 
-const vec3 SunDirection = normalize(vec3(1.5, 1.0, 2.0));
-
-vec3 getDirectionalLightColor(vec3 direction)
+vec3 getDirectionalLightColor(vec3 direction, vec3 sunDirection)
 {
-    float intensity = max(dot(direction, SunDirection), 0.0);
+    float intensity = max(dot(direction, sunDirection), 0.0);
     return vec3(1.0) * intensity;
 }
 
-float getNonOccludedProbability(vec3 worldSpacePosition, float viewSpaceZ)
+float getNonOccludedProbability(vec3 viewSpacePosition)
 {
     // Compute the cascade index based on the logarithmic split scheme.
-    viewSpaceZ = clamp(viewSpaceZ, -u_cameraFar, -u_cameraNear);
+    float viewSpaceZ = clamp(viewSpacePosition.z, -u_cameraFar, -u_cameraNear);
     int cascadeIndex = int(floor(float(ShadowMapCascadeCount) * log(-viewSpaceZ / u_cameraNear)
                                  / log(u_cameraFar / u_cameraNear)));
     cascadeIndex = clamp(cascadeIndex, 0, ShadowMapCascadeCount - 1);
 
+    // These transformations skip the world space, transforming directly from the camera's view
+    // space to the shadow map's view and clip spaces.
     vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex]
-                                   * vec4(worldSpacePosition, 1.0);
-    vec4 shadowClipSpacePosition = u_shadowProjectionMatrices[cascadeIndex]
-                                   * shadowViewSpacePosition;
+                                   * vec4(viewSpacePosition, 1.0);
+    vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrices[cascadeIndex]
+                                   * vec4(viewSpacePosition, 1.0);
     shadowClipSpacePosition /= shadowClipSpacePosition.w;
-    vec2 shadowScreenSpacePosition = shadowClipSpacePosition.xy * 0.5 + 0.5;
+    vec2 shadowTextureCoords = shadowClipSpacePosition.xy * 0.5 + 0.5;
 
-    if (any(lessThan(shadowScreenSpacePosition, vec2(0.0)))
-        || any(greaterThan(shadowScreenSpacePosition, vec2(1.0)))) {
+    if (any(lessThan(shadowTextureCoords, vec2(0.0)))
+        || any(greaterThan(shadowTextureCoords, vec2(1.0)))) {
         return 1.0;
     }
 
-    vec4 depthData = texture(u_shadowDepthTexture,
-                             vec3(shadowScreenSpacePosition, float(cascadeIndex)));
+    vec4 depthData = texture(u_shadowDepthTexture, vec3(shadowTextureCoords, float(cascadeIndex)));
     float shadowDepth = depthData.r;
     float shadowDepthSquared = depthData.g;
 
@@ -80,9 +78,12 @@ vec3 applyBeerLambert(vec3 surfaceColor,
     return mix(scatteredLight, surfaceColor, transmittance);
 }
 
-vec3 applyAtmosphericScattering(vec3 surfaceColor, float pathLength, vec3 pathDirection)
+vec3 applyAtmosphericScattering(vec3 surfaceColor,
+                                float pathLength,
+                                vec3 pathDirection,
+                                vec3 sunDirection)
 {
-    // Reference:
+    // Rendering outdoor light scattering in real time:
     // https://drivers.amd.com/developer/gdc/GDC02_HoffmanPreetham.pdf
 
     const float Pi = 3.14159265358979323846;
@@ -91,7 +92,7 @@ vec3 applyAtmosphericScattering(vec3 surfaceColor, float pathLength, vec3 pathDi
     const float G = 0.76;
     const vec3 ESun = vec3(10.0);
 
-    float cosTheta = dot(pathDirection, SunDirection);
+    float cosTheta = dot(pathDirection, sunDirection);
 
     vec3 betaRTheta = 3.0 / (16.0 * Pi) * BetaR * (1.0 + cosTheta * cosTheta);
     vec3 betaMTheta = 1.0 / (4.0 * Pi) * BetaM * (1.0 - G) * (1.0 - G)
@@ -101,7 +102,8 @@ vec3 applyAtmosphericScattering(vec3 surfaceColor, float pathLength, vec3 pathDi
     return surfaceColor * extinctionFactor + radianceIn;
 }
 
-vec3 applyMediumEffects(int mediumType, vec3 surfaceColor, float pathLength, vec3 pathDirection)
+vec3 applyMediumEffects(
+    int mediumType, vec3 surfaceColor, float pathLength, vec3 pathDirection, vec3 sunDirection)
 {
     if (mediumType == BlockTypeWater) {
         surfaceColor *= vec3(0.8, 0.8, 1.0);
@@ -118,23 +120,23 @@ vec3 applyMediumEffects(int mediumType, vec3 surfaceColor, float pathLength, vec
                                 vec3(1.0, 0.2, 0.0));
     }
     // Hack: Scale the path length to make the atmospheric scattering more visible.
-    return applyAtmosphericScattering(surfaceColor, pathLength * 10.0, pathDirection);
+    return applyAtmosphericScattering(surfaceColor, pathLength * 10.0, pathDirection, sunDirection);
 }
 
 vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
-                                             vec3 worldSpaceDirection,
                                              vec3 viewSpaceDirection,
-                                             vec2 screenSpacePosition,
-                                             vec3 fromViewSpacePosition)
+                                             vec2 textureCoords,
+                                             vec3 fromViewSpacePosition,
+                                             vec3 viewSpaceSunDirection)
 {
     int mediumType;
     vec3 surfaceColor;
     float pathLength;
-    vec3 pathDirection;
+    vec3 viewSpacePathDirection;
     if (depth >= 1e4) {
         // Sky
         mediumType = BlockTypeAir;
-        if (dot(worldSpaceDirection, SunDirection) >= cos(0.02)) {
+        if (dot(viewSpaceDirection, viewSpaceSunDirection) >= cos(0.02)) {
             // Draw a round disc to simulate the sun. Note that this is much larger than the actual
             // sun.
             surfaceColor = vec3(10.0);
@@ -142,30 +144,33 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
             surfaceColor = vec3(0.0);
         }
         pathLength = 1e4;
-        pathDirection = worldSpaceDirection;
+        viewSpacePathDirection = viewSpaceDirection;
     } else {
         vec3 albedo;
         {
-            vec4 albedoData = texture(u_opaqueAlbedoTexture, screenSpacePosition);
+            vec4 albedoData = texture(u_opaqueAlbedoTexture, textureCoords);
             albedo = linearColorFromSRGB(albedoData.rgb);
             mediumType = blockTypeFromFloat(albedoData.a);
         }
 
         vec3 viewSpacePosition = viewSpaceDirection * depth;
-        vec3 worldSpacePosition = (u_viewMatrixInverse * vec4(viewSpacePosition, 1.0)).xyz;
-        vec3 normal = normalize(texture(u_opaqueNormalTexture, screenSpacePosition).xyz);
+        vec3 viewSpaceNormal = normalize(texture(u_opaqueNormalTexture, textureCoords).xyz);
 
-        vec3 lightColor = getDirectionalLightColor(normal);
-        lightColor *= getNonOccludedProbability(worldSpacePosition, viewSpacePosition.z);
+        vec3 lightColor = getDirectionalLightColor(viewSpaceNormal, viewSpaceSunDirection);
+        lightColor *= getNonOccludedProbability(viewSpacePosition);
         lightColor += 0.2; // Ambient light
         surfaceColor = lightColor * albedo;
 
         vec3 viewSpacePath = viewSpacePosition - fromViewSpacePosition;
         pathLength = length(viewSpacePath);
-        pathDirection = normalize((u_viewMatrixInverse * vec4(viewSpacePath, 0.0)).xyz);
+        viewSpacePathDirection = normalize(viewSpacePath);
     }
 
-    return applyMediumEffects(mediumType, surfaceColor, pathLength, pathDirection);
+    return applyMediumEffects(mediumType,
+                              surfaceColor,
+                              pathLength,
+                              viewSpacePathDirection,
+                              viewSpaceSunDirection);
 }
 
 vec3 toneMapACES(vec3 color)
@@ -183,34 +188,36 @@ vec3 toneMapACES(vec3 color)
 
 void main()
 {
+    const vec3 WorldSpaceSunDirection = normalize(vec3(1.5, 1.0, 2.0));
+    vec3 viewSpaceSunDirection = (u_viewMatrix * vec4(WorldSpaceSunDirection, 0.0)).xyz;
+
     float opaqueDepth = texture(u_opaqueDepthTexture, v_textureCoords).r;
     float translucentDepth = texture(u_translucentDepthTexture, v_textureCoords).r;
 
     vec4 clipSpacePosition = vec4(v_textureCoords * 2.0 - 1.0, 1.0, 1.0);
     vec3 viewSpaceDirection = normalize((u_projectionMatrixInverse * clipSpacePosition).xyz);
-    vec3 worldSpaceDirection = normalize((u_viewMatrixInverse * vec4(viewSpaceDirection, 0.0)).xyz);
 
     if (translucentDepth >= opaqueDepth) {
         // No translucent (water) fragment is visible.
         f_color.rgb = getOpaqueFragmentColorWithMediumEffects(opaqueDepth,
-                                                              worldSpaceDirection,
                                                               viewSpaceDirection,
                                                               v_textureCoords,
-                                                              vec3(0.0));
+                                                              vec3(0.0),
+                                                              viewSpaceSunDirection);
     } else {
         // Handle water reflections and refractions.
         // The refraction approximation is very rough, so we pick a very small refractive index to
         // reduce visual artifacts.
         const float WaterRefractiveIndex = 1.02;
 
-        vec3 normal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
-        float cosTheta = dot(normal, -worldSpaceDirection);
+        vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
+        float cosTheta = dot(viewSpaceNormal, -viewSpaceDirection);
 
         float incomingRefractiveIndex;
         float outgoingRefractiveIndex;
         if (cosTheta < 0.0) {
             // Under water
-            normal = -normal;
+            viewSpaceNormal = -viewSpaceNormal;
             cosTheta = -cosTheta;
             incomingRefractiveIndex = WaterRefractiveIndex;
             outgoingRefractiveIndex = 1.0;
@@ -220,10 +227,11 @@ void main()
             outgoingRefractiveIndex = WaterRefractiveIndex;
         }
 
-        vec3 reflectedDirection = reflect(worldSpaceDirection, normal);
-        vec3 refractedDirection = refract(worldSpaceDirection,
-                                          normal,
-                                          incomingRefractiveIndex / outgoingRefractiveIndex);
+        vec3 viewSpaceReflectedDirection = reflect(viewSpaceDirection, viewSpaceNormal);
+        vec3 viewSpaceRefractedDirection = refract(viewSpaceDirection,
+                                                   viewSpaceNormal,
+                                                   incomingRefractiveIndex
+                                                       / outgoingRefractiveIndex);
 
         // Schlick's approximation:
         // https://en.wikipedia.org/wiki/Schlick%27s_approximation
@@ -236,47 +244,44 @@ void main()
             reflectionCoefficient = clamp(reflectionCoefficient, 0.0, 1.0);
         }
 
-        vec3 waterViewSpacePosition = viewSpaceDirection * translucentDepth;
-        vec3 waterWorldSpacePosition = (u_viewMatrixInverse * vec4(waterViewSpacePosition, 1.0)).xyz;
+        vec3 viewSpaceWaterPosition = viewSpaceDirection * translucentDepth;
 
-        vec3 reflectedColor = getDirectionalLightColor(reflectedDirection);
-        reflectedColor *= getNonOccludedProbability(waterWorldSpacePosition,
-                                                    waterViewSpacePosition.z);
+        vec3 reflectedColor = getDirectionalLightColor(viewSpaceReflectedDirection,
+                                                       viewSpaceSunDirection);
+        reflectedColor *= getNonOccludedProbability(viewSpaceWaterPosition);
         reflectedColor += 0.2; // Ambient light
 
         vec3 refractedColor;
-        if (length(refractedDirection) < 1e-3) {
+        if (length(viewSpaceRefractedDirection) < 1e-3) {
             // Full reflection
             refractedColor = vec3(0.0);
         } else {
             // This is based the naive assumption that the background depth along the refracted
             // direction is the same as the background depth along the view direction.
-            vec3 backgroundWorldSpacePosition = waterWorldSpacePosition
-                                                + refractedDirection
-                                                      * (opaqueDepth - translucentDepth);
-            vec3 backgroundViewSpaceDirection = normalize(
-                (u_viewMatrix * vec4(backgroundWorldSpacePosition, 1.0)).xyz);
-            vec3 backgroundWorldSpaceDirection = normalize(
-                (u_viewMatrixInverse * vec4(backgroundViewSpaceDirection, 0.0)).xyz);
-            vec4 backgroundClipSpacePosition = u_projectionMatrix
-                                               * vec4(backgroundViewSpaceDirection, 1.0);
-            backgroundClipSpacePosition /= backgroundClipSpacePosition.w;
-            vec2 backgroundScreenSpacePosition = backgroundClipSpacePosition.xy * 0.5 + 0.5;
-            float backgroundDepth = texture(u_opaqueDepthTexture, backgroundScreenSpacePosition).r;
+            vec3 viewSpaceBackgroundDirection = normalize(viewSpaceWaterPosition
+                                                          + viewSpaceRefractedDirection
+                                                                * (opaqueDepth - translucentDepth));
+            vec4 clipSpaceBackgroundPosition = u_projectionMatrix
+                                               * vec4(viewSpaceBackgroundDirection, 1.0);
+            clipSpaceBackgroundPosition /= clipSpaceBackgroundPosition.w;
+            vec2 backgroundTextureCoords = clipSpaceBackgroundPosition.xy * 0.5 + 0.5;
+            float backgroundDepth = texture(u_opaqueDepthTexture, backgroundTextureCoords).r;
             refractedColor = getOpaqueFragmentColorWithMediumEffects(backgroundDepth,
-                                                                     backgroundWorldSpaceDirection,
-                                                                     backgroundViewSpaceDirection,
-                                                                     backgroundScreenSpacePosition,
-                                                                     waterViewSpacePosition);
+                                                                     viewSpaceBackgroundDirection,
+                                                                     backgroundTextureCoords,
+                                                                     viewSpaceWaterPosition,
+                                                                     viewSpaceSunDirection);
         }
 
         vec3 surfaceColor = mix(refractedColor, reflectedColor, reflectionCoefficient);
         surfaceColor *= vec3(0.4, 0.6, 0.8);
 
         int mediumType = blockTypeFromFloat(texture(u_translucentAlbedoTexture, v_textureCoords).a);
-        float pathLength = translucentDepth;
-        vec3 pathDirection = worldSpaceDirection;
-        f_color.rgb = applyMediumEffects(mediumType, surfaceColor, pathLength, pathDirection);
+        f_color.rgb = applyMediumEffects(mediumType,
+                                         surfaceColor,
+                                         translucentDepth,
+                                         viewSpaceDirection,
+                                         viewSpaceSunDirection);
     }
 
     f_color.rgb = linearColorToSRGB(toneMapACES(f_color.rgb));

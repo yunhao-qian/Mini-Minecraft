@@ -11,7 +11,7 @@ const float WaterWaveAngularFrequencies[WaterWaveCount] = float[](4.3, 3.2, 1.2,
 const float WaterWavePhaseOffsets[WaterWaveCount] = float[](3.451, 4.134, 4.771, 4.065, 4.776, 5.552);
 const float WaterWaveExponents[WaterWaveCount] = float[](1.0, 2.0, 1.5, 2.5, 1.2, 1.6);
 
-// Reference:
+// Effective water simulation from physical models:
 // https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models
 
 float getWaterWaveOffset(vec2 position, float time)
