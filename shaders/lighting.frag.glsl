@@ -15,6 +15,10 @@ uniform sampler2D u_opaqueDepthTexture;
 uniform sampler2D u_translucentNormalTexture;
 uniform sampler2D u_translucentAlbedoTexture;
 uniform sampler2D u_translucentDepthTexture;
+// TODO: Utilize the reflected textures.
+uniform sampler2D u_reflectedNormalTexture;
+uniform sampler2D u_reflectedAlbedoTexture;
+uniform sampler2D u_reflectedDepthTexture;
 
 in vec2 v_textureCoords;
 
@@ -36,7 +40,13 @@ vec3 getDirectionalLightColor(vec3 direction, vec3 sunDirection)
     return vec3(1.0) * intensity;
 }
 
-vec2 sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ)
+struct DepthMapResult
+{
+    float depth;
+    float depthSquared;
+};
+
+DepthMapResult sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ)
 {
     vec3 sampleCoords = vec3(0.0, 0.0, float(cascadeIndex));
 
@@ -65,8 +75,9 @@ vec2 sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ
     averageDepthDifference = clamp(averageDepthDifference, 5.0, 100.0);
 
     // Sample the average depth and depth squared in a larger neighborhood.
-    float blurredDepth = 0.0;
-    float blurredDepthSquared = 0.0;
+    DepthMapResult result;
+    result.depth = 0.0;
+    result.depthSquared = 0.0;
     {
         const int HalfNumSamples = 8;
         const float Multiplier = 1.0 / float((HalfNumSamples * 2 + 1) * (HalfNumSamples * 2 + 1));
@@ -79,13 +90,13 @@ vec2 sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ
             for (int ix = -HalfNumSamples; ix <= HalfNumSamples; ++ix) {
                 sampleCoords.x = textureCoords.x + float(ix) * offsetStep.x;
                 float depth = texture(u_shadowDepthTexture, sampleCoords).r;
-                blurredDepth += depth * Multiplier;
-                blurredDepthSquared += depth * depth * Multiplier;
+                result.depth += depth * Multiplier;
+                result.depthSquared += depth * depth * Multiplier;
             }
         }
     }
 
-    return vec2(blurredDepth, blurredDepthSquared);
+    return result;
 }
 
 float getNonOccludedProbability(vec3 viewSpacePosition)
@@ -110,18 +121,11 @@ float getNonOccludedProbability(vec3 viewSpacePosition)
         return 1.0;
     }
 
-    float shadowDepth;
-    float shadowDepthSquared;
-    {
-        vec2 shadowDepthData = sampleDepthMap(shadowTextureCoords,
-                                              cascadeIndex,
-                                              shadowViewSpacePosition.z);
-        shadowDepth = shadowDepthData.x;
-        shadowDepthSquared = shadowDepthData.y;
-    }
-
-    float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 2e-5);
-    float depthDifference = max(-shadowViewSpacePosition.z - shadowDepth, 0.0);
+    DepthMapResult result = sampleDepthMap(shadowTextureCoords,
+                                           cascadeIndex,
+                                           shadowViewSpacePosition.z);
+    float depthVariance = max(result.depthSquared - result.depth * result.depth, 2e-5);
+    float depthDifference = max(-shadowViewSpacePosition.z - result.depth, 0.0);
     float probability = depthVariance / (depthVariance + depthDifference * depthDifference);
     // Rescale the probability to reduce light-bleeding artifacts.
     probability = clamp((probability - 0.2) / 0.8, 0.0, 1.0);
@@ -159,6 +163,84 @@ vec3 applyAtmosphericScattering(vec3 surfaceColor,
     vec3 extinctionFactor = exp(-(BetaR + BetaM) * pathLength);
     vec3 radianceIn = (betaRTheta + betaMTheta) / (BetaR + BetaM) * ESun * (1.0 - extinctionFactor);
     return surfaceColor * extinctionFactor + radianceIn;
+}
+
+struct RayMarchResult
+{
+    bool isHit;
+    float depth;
+    vec3 viewSpaceDirection;
+    vec2 textureCoords;
+};
+
+RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection)
+{
+    vec3 viewSpacePosition = fromViewSpacePosition;
+    bool hasStepMultiplierChanged = false;
+    bool hasHitOccurred = false;
+    float stepMultiplier = 0.5;
+    float geometryDepth;
+    float rayDepth;
+    vec2 textureCoords;
+
+    for (int i = 0; i < 100; ++i) {
+        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        clipSpacePosition /= clipSpacePosition.w;
+        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
+        if (any(lessThan(textureCoords, vec2(0.0))) || any(greaterThan(textureCoords, vec2(1.0)))) {
+            // The ray is out of bounds. Try to step back a bit.
+            hasStepMultiplierChanged = true;
+            stepMultiplier = -abs(stepMultiplier);
+            viewSpacePosition += viewSpaceDirection * stepMultiplier;
+            continue;
+        }
+
+        geometryDepth = texture(u_opaqueDepthTexture, textureCoords).r;
+        rayDepth = length(viewSpacePosition);
+
+        if (geometryDepth < rayDepth) {
+            // Step back.
+            hasHitOccurred = true;
+            if (stepMultiplier > 0.0) {
+                hasStepMultiplierChanged = true;
+                stepMultiplier *= -0.5;
+            }
+        } else if (geometryDepth > rayDepth) {
+            // Step forward.
+            if (stepMultiplier < 0.0) {
+                hasStepMultiplierChanged = true;
+                stepMultiplier *= -0.5;
+            }
+        } else {
+            // The ray hits a geometry exactly. This is very unlikely, but we handle this case as a
+            // theoretical possibility.
+            return RayMarchResult(true, rayDepth, normalize(viewSpacePosition), textureCoords);
+        }
+
+        viewSpacePosition += viewSpaceDirection * stepMultiplier;
+    }
+
+    if (!hasHitOccurred) {
+        if (!hasStepMultiplierChanged) {
+            // The ray goes into the sky.
+            return RayMarchResult(true, 1e5, viewSpaceDirection, vec2(0.0));
+        }
+        // The ray goes out of bounds, and we are unsure if it is a hit or not.
+        return RayMarchResult(false, 0.0, vec3(0.0), vec2(0.0));
+    }
+
+    // Step back so that the ray is outside the geometry.
+    vec3 stepVector = viewSpaceDirection * -abs(stepMultiplier);
+    for (int i = 0; geometryDepth < rayDepth && i < 10; ++i) {
+        viewSpacePosition += stepVector;
+        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        clipSpacePosition /= clipSpacePosition.w;
+        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
+
+        geometryDepth = texture(u_opaqueDepthTexture, textureCoords).r;
+        rayDepth = length(viewSpacePosition);
+    }
+    return RayMarchResult(hasHitOccurred, rayDepth, normalize(viewSpacePosition), textureCoords);
 }
 
 vec3 applyMediumEffects(
@@ -265,8 +347,8 @@ void main()
                                                               viewSpaceSunDirection);
     } else {
         // Handle water reflections and refractions.
-        // The refraction approximation is very rough, so we pick a very small refractive index to
-        // reduce visual artifacts.
+        // Screen-space reflections and refractions may run into positions not covered by the
+        // geometry passes, so we use a very small refractive index to reduce visual artifacts.
         const float WaterRefractiveIndex = 1.02;
 
         vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
@@ -305,31 +387,29 @@ void main()
 
         vec3 viewSpaceWaterPosition = viewSpaceDirection * translucentDepth;
 
-        vec3 reflectedColor = getDirectionalLightColor(viewSpaceReflectedDirection,
-                                                       viewSpaceSunDirection);
-        reflectedColor *= getNonOccludedProbability(viewSpaceWaterPosition);
-        reflectedColor += 0.2; // Ambient light
+        vec3 reflectedColor = vec3(0.0);
+        {
+            RayMarchResult result = rayMarch(viewSpaceWaterPosition, viewSpaceReflectedDirection);
+            if (result.isHit) {
+                reflectedColor = getOpaqueFragmentColorWithMediumEffects(result.depth,
+                                                                         result.viewSpaceDirection,
+                                                                         result.textureCoords,
+                                                                         viewSpaceWaterPosition,
+                                                                         viewSpaceSunDirection);
+            }
+        }
 
-        vec3 refractedColor;
-        if (length(viewSpaceRefractedDirection) < 1e-3) {
-            // Full reflection
-            refractedColor = vec3(0.0);
-        } else {
-            // This is based the naive assumption that the background depth along the refracted
-            // direction is the same as the background depth along the view direction.
-            vec3 viewSpaceBackgroundDirection = normalize(viewSpaceWaterPosition
-                                                          + viewSpaceRefractedDirection
-                                                                * (opaqueDepth - translucentDepth));
-            vec4 clipSpaceBackgroundPosition = u_projectionMatrix
-                                               * vec4(viewSpaceBackgroundDirection, 1.0);
-            clipSpaceBackgroundPosition /= clipSpaceBackgroundPosition.w;
-            vec2 backgroundTextureCoords = clipSpaceBackgroundPosition.xy * 0.5 + 0.5;
-            float backgroundDepth = texture(u_opaqueDepthTexture, backgroundTextureCoords).r;
-            refractedColor = getOpaqueFragmentColorWithMediumEffects(backgroundDepth,
-                                                                     viewSpaceBackgroundDirection,
-                                                                     backgroundTextureCoords,
-                                                                     viewSpaceWaterPosition,
-                                                                     viewSpaceSunDirection);
+        vec3 refractedColor = vec3(0.0);
+        if (length(viewSpaceRefractedDirection) > 1e-3) {
+            // Not full reflection
+            RayMarchResult result = rayMarch(viewSpaceWaterPosition, viewSpaceRefractedDirection);
+            if (result.isHit) {
+                refractedColor = getOpaqueFragmentColorWithMediumEffects(result.depth,
+                                                                         result.viewSpaceDirection,
+                                                                         result.textureCoords,
+                                                                         viewSpaceWaterPosition,
+                                                                         viewSpaceSunDirection);
+            }
         }
 
         vec3 surfaceColor = mix(refractedColor, reflectedColor, reflectionCoefficient);

@@ -1,5 +1,7 @@
 uniform float u_time;
 uniform mat4 u_viewMatrix;
+uniform int u_isAboveWaterOnly;
+uniform int u_isUnderWaterOnly;
 uniform sampler2DArray u_colorTexture;
 uniform sampler2DArray u_normalTexture;
 
@@ -19,6 +21,13 @@ layout(location = 2) out vec4 f_albedo;
 
 void main()
 {
+    if (u_isAboveWaterOnly != 0 && v_worldSpacePosition.y < v_waterElevation) {
+        discard;
+    }
+    if (u_isUnderWaterOnly != 0 && v_worldSpacePosition.y > v_waterElevation) {
+        discard;
+    }
+
     vec3 viewSpacePosition = (u_viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz;
     f_depth = length(viewSpacePosition);
 

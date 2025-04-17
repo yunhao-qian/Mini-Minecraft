@@ -29,6 +29,7 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _shadowMapFramebuffer{this}
     , _opaqueGeometryFramebuffer{this}
     , _translucentGeometryFramebuffer{this}
+    , _reflectedGeometryFramebuffer{this}
     , _quadVAO{0u}
 {
     // Allows the widget to accept focus for keyboard input.
@@ -95,6 +96,8 @@ void OpenGLWidget::initializeGL()
             "u_time",
             "u_viewMatrix",
             "u_viewProjectionMatrix",
+            "u_isAboveWaterOnly",
+            "u_isUnderWaterOnly",
             "u_colorTexture",
             "u_normalTexture",
         });
@@ -146,12 +149,15 @@ void OpenGLWidget::initializeGL()
 
     _lightingProgram.use();
     _lightingProgram.setUniform("u_shadowDepthTexture", 2);
-    _lightingProgram.setUniform("u_opaqueNormalTexture", 3);
-    _lightingProgram.setUniform("u_opaqueAlbedoTexture", 4);
-    _lightingProgram.setUniform("u_opaqueDepthTexture", 5);
-    _lightingProgram.setUniform("u_translucentNormalTexture", 6);
-    _lightingProgram.setUniform("u_translucentAlbedoTexture", 7);
-    _lightingProgram.setUniform("u_translucentDepthTexture", 8);
+    _lightingProgram.setUniform("u_opaqueDepthTexture", 3);
+    _lightingProgram.setUniform("u_opaqueNormalTexture", 4);
+    _lightingProgram.setUniform("u_opaqueAlbedoTexture", 5);
+    _lightingProgram.setUniform("u_translucentDepthTexture", 6);
+    _lightingProgram.setUniform("u_translucentNormalTexture", 7);
+    _lightingProgram.setUniform("u_translucentAlbedoTexture", 8);
+    _lightingProgram.setUniform("u_reflectedDepthTexture", 9);
+    _lightingProgram.setUniform("u_reflectedNormalTexture", 10);
+    _lightingProgram.setUniform("u_reflectedAlbedoTexture", 11);
 
     // The lighting pass does not need any vertex, index, or instance data, but we need a dummy VAO
     // for it.
@@ -161,6 +167,9 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
+    // TODO: Replace the hardcoded water level.
+    constexpr auto WaterElevation{138.0f};
+
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
 
@@ -170,6 +179,8 @@ void OpenGLWidget::paintGL()
     glm::vec3 cameraPosition;
     float cameraNear;
     float cameraFar;
+    glm::mat4 reflectedViewMatrix;
+    glm::mat4 reflectedProjectionMatrix;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
@@ -179,6 +190,9 @@ void OpenGLWidget::paintGL()
         cameraPosition = camera.pose().position();
         cameraNear = camera.near();
         cameraFar = camera.far();
+        const auto reflectedCamera{camera.getReflectedCamera(WaterElevation)};
+        reflectedViewMatrix = reflectedCamera.pose().viewMatrix();
+        reflectedProjectionMatrix = reflectedCamera.projectionMatrix();
     }
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
@@ -214,6 +228,8 @@ void OpenGLWidget::paintGL()
         _geometryProgram.setUniform("u_time", time);
         _geometryProgram.setUniform("u_viewMatrix", viewMatrix);
         _geometryProgram.setUniform("u_viewProjectionMatrix", projectionMatrix * viewMatrix);
+        _geometryProgram.setUniform("u_isAboveWaterOnly", 0);
+        _geometryProgram.setUniform("u_isUnderWaterOnly", 0);
 
         _opaqueGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -228,6 +244,19 @@ void OpenGLWidget::paintGL()
         for (const auto chunk : updateResult.chunksWithTranslucentFaces) {
             chunk->drawTranslucent();
         }
+
+        _geometryProgram.setUniform("u_viewMatrix", reflectedViewMatrix);
+        _geometryProgram.setUniform("u_viewProjectionMatrix",
+                                    reflectedProjectionMatrix * reflectedViewMatrix);
+        _geometryProgram.setUniform("u_isAboveWaterOnly", cameraPosition.y > WaterElevation ? 1 : 0);
+        _geometryProgram.setUniform("u_isUnderWaterOnly", cameraPosition.y < WaterElevation ? 1 : 0);
+
+        _reflectedGeometryFramebuffer.bind();
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        debugError();
+        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
+            chunk->drawOpaque();
+        }
     }
 
     glDisable(GL_DEPTH_TEST);
@@ -239,12 +268,15 @@ void OpenGLWidget::paintGL()
     debugError();
 
     bindTextures({
-        {GL_TEXTURE3, _opaqueGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE4, _opaqueGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE5, _opaqueGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE6, _translucentGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE7, _translucentGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE8, _translucentGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE3, _opaqueGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE4, _opaqueGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE5, _opaqueGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE6, _translucentGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE7, _translucentGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE8, _translucentGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE9, _reflectedGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE10, _reflectedGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE11, _reflectedGeometryFramebuffer.albedoTexture()},
     });
 
     _lightingProgram.use();
@@ -294,6 +326,9 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE6, 0u},
         {GL_TEXTURE7, 0u},
         {GL_TEXTURE8, 0u},
+        {GL_TEXTURE9, 0u},
+        {GL_TEXTURE10, 0u},
+        {GL_TEXTURE11, 0u},
     });
 
     glEnable(GL_DEPTH_TEST);
@@ -307,6 +342,7 @@ void OpenGLWidget::resizeGL([[maybe_unused]] const int width, [[maybe_unused]] c
 
     _opaqueGeometryFramebuffer.resizeViewport(deviceSize.width(), deviceSize.height());
     _translucentGeometryFramebuffer.resizeViewport(deviceSize.width(), deviceSize.height());
+    _reflectedGeometryFramebuffer.resizeViewport(deviceSize.width(), deviceSize.height());
     const std::lock_guard lock{_scene.playerMutex()};
     _scene.player().resizeCameraViewport(deviceSize.width(), deviceSize.height());
 }

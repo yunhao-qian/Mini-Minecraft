@@ -30,6 +30,8 @@ public:
 
     const glm::mat4 &projectionMatrix() const;
 
+    Camera getReflectedCamera(const float waterElevation) const;
+
 private:
     void updateProjectionMatrix();
 
