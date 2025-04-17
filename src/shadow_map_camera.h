@@ -17,7 +17,7 @@ public:
     const glm::mat4 &viewMatrix(const int cascadeIndex) const;
     const glm::mat4 &projectionMatrix(const int cascadeIndex) const;
 
-    glm::vec2 getBlurRadius(const int cascadeIndex) const;
+    glm::vec2 getDepthBlurScale(const int cascadeIndex) const;
 
     static constexpr int CascadeCount{4};
 

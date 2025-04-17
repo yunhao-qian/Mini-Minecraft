@@ -24,12 +24,12 @@ void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
     _context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
                            0,
-                           GL_RG32F,
+                           GL_R32F,
                            width,
                            height,
                            ShadowMapCamera::CascadeCount,
                            0,
-                           GL_RG,
+                           GL_RED,
                            GL_FLOAT,
                            nullptr);
     _context->debugError();

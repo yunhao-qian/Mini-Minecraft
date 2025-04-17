@@ -6,7 +6,6 @@
 
 #include <QDateTime>
 #include <QThreadPool>
-#include <QtCore/qthreadpool.h>
 
 #include <initializer_list>
 #include <mutex>
@@ -23,13 +22,11 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _terrainStreamer{this, &_scene.terrain()}
     , _playerController{&_scene.player()}
     , _shadowDepthProgram{this}
-    , _shadowMapBlurProgram{this}
     , _geometryProgram{this}
     , _lightingProgram{this}
     , _colorTexture{this}
     , _normalTexture{this}
     , _shadowMapFramebuffer{this}
-    , _intermediateShadowMapFramebuffer{this}
     , _opaqueGeometryFramebuffer{this}
     , _translucentGeometryFramebuffer{this}
     , _quadVAO{0u}
@@ -65,8 +62,8 @@ void OpenGLWidget::initializeGL()
     // translucent contents manually.
 
     // The only place that uses the clear color is the depth textures of the shadow map and geometry
-    // passes, where the R channel stores the depth and the G channel stores the squared depth.
-    glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
+    // passes, where only the R channel is used to store the depth value.
+    glClearColor(1e5f, 0.0f, 0.0f, 0.0f);
     debugError();
 
     _shadowDepthProgram.create(
@@ -80,20 +77,6 @@ void OpenGLWidget::initializeGL()
         {
             "u_shadowViewMatrix",
             "u_shadowViewProjectionMatrix",
-        });
-
-    _shadowMapBlurProgram.create(
-        {
-            ":/shaders/quad.vert.glsl",
-        },
-        {
-            ":/shaders/shadow_map_blur.frag.glsl",
-        },
-        {
-            "u_isVerticalBlur",
-            "u_blurRadius",
-            "u_shadowDepthTexture",
-            "u_shadowMapCascadeIndex",
         });
 
     _geometryProgram.create(
@@ -132,6 +115,7 @@ void OpenGLWidget::initializeGL()
             "u_cameraFar",
             "u_shadowViewMatrices",
             "u_shadowViewProjectionMatrices",
+            "u_shadowMapDepthBlurScales",
             "u_shadowDepthTexture",
             "u_opaqueNormalTexture",
             "u_opaqueAlbedoTexture",
@@ -144,9 +128,8 @@ void OpenGLWidget::initializeGL()
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
-    // The shadow map framebuffers have a fixed size and do not resize with the viewport.
+    // The shadow map framebuffer has a fixed size and does not resize with the viewport.
     _shadowMapFramebuffer.resizeViewport(4096, 4096);
-    _intermediateShadowMapFramebuffer.resizeViewport(4096, 4096);
 
     glActiveTexture(GL_TEXTURE0);
     debugError();
@@ -156,9 +139,6 @@ void OpenGLWidget::initializeGL()
     debugError();
     glBindTexture(GL_TEXTURE_2D_ARRAY, _normalTexture.texture());
     debugError();
-
-    _shadowMapBlurProgram.use();
-    _shadowMapBlurProgram.setUniform("u_shadowDepthTexture", 2);
 
     _geometryProgram.use();
     _geometryProgram.setUniform("u_colorTexture", 0);
@@ -173,8 +153,8 @@ void OpenGLWidget::initializeGL()
     _lightingProgram.setUniform("u_translucentAlbedoTexture", 7);
     _lightingProgram.setUniform("u_translucentDepthTexture", 8);
 
-    // The shadow map blur and lighting passes does not need any vertex, index, or instance data,
-    // but we need a dummy VAO for them.
+    // The lighting pass does not need any vertex, index, or instance data, but we need a dummy VAO
+    // for it.
     glGenVertexArrays(1, &_quadVAO);
     debugError();
 }
@@ -203,11 +183,13 @@ void OpenGLWidget::paintGL()
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
     glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
+    glm::vec2 shadowMapDepthBlurScales[ShadowMapCamera::CascadeCount];
     for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
         const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
         const auto &shadowProjectionMatrix{shadowMapCamera.projectionMatrix(cascadeIndex)};
         shadowViewMatrices[cascadeIndex] = shadowViewMatrix;
         shadowViewProjectionMatrices[cascadeIndex] = shadowProjectionMatrix * shadowViewMatrix;
+        shadowMapDepthBlurScales[cascadeIndex] = shadowMapCamera.getDepthBlurScale(cascadeIndex);
     }
 
     {
@@ -251,41 +233,6 @@ void OpenGLWidget::paintGL()
     glDisable(GL_DEPTH_TEST);
     debugError();
 
-    _shadowMapBlurProgram.use();
-    {
-        glm::vec2 blurRadii[ShadowMapCamera::CascadeCount];
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-            blurRadii[cascadeIndex] = shadowMapCamera.getBlurRadius(cascadeIndex);
-        }
-
-        for (const auto isVerticalBlur : {false, true}) {
-            const auto &inputFramebuffer{isVerticalBlur ? _intermediateShadowMapFramebuffer
-                                                        : _shadowMapFramebuffer};
-            const auto &outputFramebuffer{isVerticalBlur ? _shadowMapFramebuffer
-                                                         : _intermediateShadowMapFramebuffer};
-
-            glActiveTexture(GL_TEXTURE2);
-            debugError();
-            glBindTexture(GL_TEXTURE_2D_ARRAY, inputFramebuffer.depthTexture());
-            debugError();
-
-            _shadowMapBlurProgram.setUniform("u_isVerticalBlur", static_cast<GLint>(isVerticalBlur));
-
-            for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-                const auto blurRadius{blurRadii[cascadeIndex][static_cast<int>(isVerticalBlur)]};
-                _shadowMapBlurProgram.setUniform("u_blurRadius", blurRadius);
-                _shadowMapBlurProgram.setUniform("u_shadowMapCascadeIndex", cascadeIndex);
-
-                outputFramebuffer.bind(cascadeIndex);
-                debugError();
-                glBindVertexArray(_quadVAO);
-                debugError();
-                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-                debugError();
-            }
-        }
-    }
-
     glActiveTexture(GL_TEXTURE2);
     debugError();
     glBindTexture(GL_TEXTURE_2D_ARRAY, _shadowMapFramebuffer.depthTexture());
@@ -323,6 +270,9 @@ void OpenGLWidget::paintGL()
     _lightingProgram.setUniforms("u_shadowViewProjectionMatrices",
                                  ShadowMapCamera::CascadeCount,
                                  shadowViewProjectionMatrices);
+    _lightingProgram.setUniforms("u_shadowMapDepthBlurScales",
+                                 ShadowMapCamera::CascadeCount,
+                                 shadowMapDepthBlurScales);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     debugError();

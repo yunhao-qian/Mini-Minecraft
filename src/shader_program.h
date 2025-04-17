@@ -100,7 +100,9 @@ void ShaderProgram::setUniforms(const QString &name, const GLsizei count, const 
         return;
     }
     const auto location{it->second};
-    if constexpr (std::is_same_v<T, glm::mat4>) {
+    if constexpr (std::is_same_v<T, glm::vec2>) {
+        _context->glUniform2fv(location, count, &values[0][0]);
+    } else if constexpr (std::is_same_v<T, glm::mat4>) {
         _context->glUniformMatrix4fv(location, count, GL_FALSE, &values[0][0][0]);
     } else {
         static_assert(DependentFalse<T>, "Unsupported uniform type");

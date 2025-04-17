@@ -87,14 +87,14 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
     }
 };
 
-glm::vec2 ShadowMapCamera::getBlurRadius(const int cascadeIndex) const
+glm::vec2 ShadowMapCamera::getDepthBlurScale(const int cascadeIndex) const
 {
-    const glm::vec2 viewSpaceRadius{0.5f};
+    const glm::vec2 viewSpaceScale{0.1f};
     const auto &projectionMatrix{_projectionMatrices[cascadeIndex]};
-    const auto clipSpaceRadius{viewSpaceRadius
-                               * glm::vec2{projectionMatrix[0][0], projectionMatrix[1][1]}};
-    const auto ndcRadius{clipSpaceRadius * 0.5f};
-    return ndcRadius;
+    const auto clipSpaceScale{viewSpaceScale
+                              * glm::vec2{projectionMatrix[0][0], projectionMatrix[1][1]}};
+    const auto ndcScale{clipSpaceScale * 0.5f};
+    return ndcScale;
 }
 
 } // namespace minecraft

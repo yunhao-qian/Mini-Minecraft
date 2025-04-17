@@ -8,7 +8,6 @@
         <file>shaders/quad.vert.glsl</file>
         <file>shaders/shadow_depth.frag.glsl</file>
         <file>shaders/shadow_depth.vert.glsl</file>
-        <file>shaders/shadow_map_blur.frag.glsl</file>
         <file>shaders/water_wave.glsl</file>
         <file>textures/minecraft_normals_all.png</file>
         <file>textures/minecraft_textures_all.png</file>

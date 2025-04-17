@@ -7,6 +7,7 @@ uniform float u_cameraNear;
 uniform float u_cameraFar;
 uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
 uniform mat4 u_shadowViewProjectionMatrices[ShadowMapCascadeCount];
+uniform vec2 u_shadowMapDepthBlurScales[ShadowMapCascadeCount];
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
@@ -35,6 +36,58 @@ vec3 getDirectionalLightColor(vec3 direction, vec3 sunDirection)
     return vec3(1.0) * intensity;
 }
 
+vec2 sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ)
+{
+    vec3 sampleCoords = vec3(0.0, 0.0, float(cascadeIndex));
+
+    // Sample the average depth in a small neighborhood.
+    float averageShadowDepth = 0.0;
+    {
+        const int HalfNumSamples = 1;
+        const float Multiplier = 1.0 / float((HalfNumSamples * 2 + 1) * (HalfNumSamples * 2 + 1));
+
+        vec2 halfSize = u_shadowMapDepthBlurScales[cascadeIndex];
+        vec2 offsetStep = halfSize / float(HalfNumSamples);
+
+        for (int iy = -HalfNumSamples; iy <= HalfNumSamples; ++iy) {
+            sampleCoords.y = textureCoords.y + float(iy) * offsetStep.y;
+            for (int ix = -HalfNumSamples; ix <= HalfNumSamples; ++ix) {
+                sampleCoords.x = textureCoords.x + float(ix) * offsetStep.x;
+                float depth = texture(u_shadowDepthTexture, sampleCoords).r;
+                averageShadowDepth += depth * Multiplier;
+            }
+        }
+    }
+
+    // The amount of blurring is proportional to the distance between the shadow-casting object and
+    // the shadow receiver.
+    float averageDepthDifference = -shadowViewSpaceZ - averageShadowDepth;
+    averageDepthDifference = clamp(averageDepthDifference, 5.0, 100.0);
+
+    // Sample the average depth and depth squared in a larger neighborhood.
+    float blurredDepth = 0.0;
+    float blurredDepthSquared = 0.0;
+    {
+        const int HalfNumSamples = 8;
+        const float Multiplier = 1.0 / float((HalfNumSamples * 2 + 1) * (HalfNumSamples * 2 + 1));
+
+        vec2 halfSize = u_shadowMapDepthBlurScales[cascadeIndex] * averageDepthDifference;
+        vec2 offsetStep = halfSize / float(HalfNumSamples);
+
+        for (int iy = -HalfNumSamples; iy <= HalfNumSamples; ++iy) {
+            sampleCoords.y = textureCoords.y + float(iy) * offsetStep.y;
+            for (int ix = -HalfNumSamples; ix <= HalfNumSamples; ++ix) {
+                sampleCoords.x = textureCoords.x + float(ix) * offsetStep.x;
+                float depth = texture(u_shadowDepthTexture, sampleCoords).r;
+                blurredDepth += depth * Multiplier;
+                blurredDepthSquared += depth * depth * Multiplier;
+            }
+        }
+    }
+
+    return vec2(blurredDepth, blurredDepthSquared);
+}
+
 float getNonOccludedProbability(vec3 viewSpacePosition)
 {
     // Compute the cascade index based on the logarithmic split scheme.
@@ -57,9 +110,15 @@ float getNonOccludedProbability(vec3 viewSpacePosition)
         return 1.0;
     }
 
-    vec4 depthData = texture(u_shadowDepthTexture, vec3(shadowTextureCoords, float(cascadeIndex)));
-    float shadowDepth = depthData.r;
-    float shadowDepthSquared = depthData.g;
+    float shadowDepth;
+    float shadowDepthSquared;
+    {
+        vec2 shadowDepthData = sampleDepthMap(shadowTextureCoords,
+                                              cascadeIndex,
+                                              shadowViewSpacePosition.z);
+        shadowDepth = shadowDepthData.x;
+        shadowDepthSquared = shadowDepthData.y;
+    }
 
     float depthVariance = max(shadowDepthSquared - shadowDepth * shadowDepth, 2e-5);
     float depthDifference = max(-shadowViewSpacePosition.z - shadowDepth, 0.0);
