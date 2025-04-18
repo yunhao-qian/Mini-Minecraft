@@ -1,6 +1,5 @@
 const int WaterWaveCount = 6;
-const float WaterWaveAmplitudes[WaterWaveCount]
-    = float[](0.03213, 0.05055, 0.04116, 0.04500, 0.05786, 0.06787);
+const float WaterWaveAmplitudes[WaterWaveCount] = float[](0.016, 0.025, 0.020, 0.022, 0.028, 0.033);
 const vec2 WaterWaveAngularWaveVectors[WaterWaveCount] = vec2[](vec2(-0.08, -0.23),
                                                                 vec2(-0.23, 0.11),
                                                                 vec2(0.23, -0.10),
@@ -22,7 +21,7 @@ float getWaterWaveOffset(vec2 position, float time)
                       + time * WaterWavePhaseOffsets[i];
         offset += 2 * WaterWaveAmplitudes[i] * pow((sin(phase) + 1.0) * 0.5, WaterWaveExponents[i]);
     }
-    return offset - 0.7;
+    return offset - 0.5;
 }
 
 vec3 getWaterWaveNormal(vec2 position, float time)

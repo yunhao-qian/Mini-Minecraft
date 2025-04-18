@@ -3,26 +3,40 @@ const int ShadowMapCascadeCount = 4;
 uniform mat4 u_viewMatrix;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_projectionMatrixInverse;
+uniform mat4 u_originalToReflectedViewMatrix;
+uniform mat4 u_reflectedToOriginalViewMatrix;
 uniform float u_cameraNear;
 uniform float u_cameraFar;
 uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
 uniform mat4 u_shadowViewProjectionMatrices[ShadowMapCascadeCount];
 uniform vec2 u_shadowMapDepthBlurScales[ShadowMapCascadeCount];
 uniform sampler2DArray u_shadowDepthTexture;
+uniform sampler2D u_opaqueDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
 uniform sampler2D u_opaqueAlbedoTexture;
-uniform sampler2D u_opaqueDepthTexture;
+uniform sampler2D u_translucentDepthTexture;
 uniform sampler2D u_translucentNormalTexture;
 uniform sampler2D u_translucentAlbedoTexture;
-uniform sampler2D u_translucentDepthTexture;
-// TODO: Utilize the reflected textures.
-uniform sampler2D u_reflectedNormalTexture;
-uniform sampler2D u_reflectedAlbedoTexture;
-uniform sampler2D u_reflectedDepthTexture;
+uniform sampler2D u_aboveWaterDepthTexture;
+uniform sampler2D u_aboveWaterNormalTexture;
+uniform sampler2D u_aboveWaterAlbedoTexture;
+uniform sampler2D u_underWaterDepthTexture;
+uniform sampler2D u_underWaterNormalTexture;
+uniform sampler2D u_underWaterAlbedoTexture;
+uniform sampler2D u_reflectedAboveWaterDepthTexture;
+uniform sampler2D u_reflectedAboveWaterNormalTexture;
+uniform sampler2D u_reflectedAboveWaterAlbedoTexture;
+uniform sampler2D u_reflectedUnderWaterDepthTexture;
+uniform sampler2D u_reflectedUnderWaterNormalTexture;
+uniform sampler2D u_reflectedUnderWaterAlbedoTexture;
 
 in vec2 v_textureCoords;
 
 out vec4 f_color;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Color Conversion
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 vec3 linearColorFromSRGB(vec3 color)
 {
@@ -34,11 +48,22 @@ vec3 linearColorToSRGB(vec3 color)
     return pow(color, vec3(1.0 / 2.2));
 }
 
-vec3 getDirectionalLightColor(vec3 direction, vec3 sunDirection)
+vec3 toneMapACES(vec3 color)
 {
-    float intensity = max(dot(direction, sunDirection), 0.0);
-    return vec3(1.0) * intensity;
+    // ACES filmic tone mapping curve:
+    // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+
+    const float A = 2.51;
+    const float B = 0.03;
+    const float C = 2.43;
+    const float D = 0.59;
+    const float E = 0.14;
+    return (color * (A * color + B)) / (color * (C * color + D) + E);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Shadow Mapping
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct DepthMapResult
 {
@@ -132,6 +157,102 @@ float getNonOccludedProbability(vec3 viewSpacePosition)
     return probability;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Ray Marching
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct RayMarchResult
+{
+    bool isHit;
+    float depth;
+    vec3 viewSpaceDirection;
+    vec2 textureCoords;
+};
+
+RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection, sampler2D depthTexture)
+{
+    bool hasStepSizeChanged = false;
+    bool hasHitOccurred = false;
+
+    float stepSize = 0.5;
+    float marchDistance = 0.0;
+    vec3 viewSpacePosition = fromViewSpacePosition;
+
+    float geometryDepth;
+    float rayDepth;
+    vec2 textureCoords;
+
+    for (int i = 0; i < 100; ++i) {
+        // Both the original and the reflected cameras share the same projection matrix.
+        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        clipSpacePosition /= clipSpacePosition.w;
+        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
+        if (any(lessThan(textureCoords, vec2(0.0))) || any(greaterThan(textureCoords, vec2(1.0)))) {
+            // The ray is out of bounds. Try to step back a bit.
+            hasStepSizeChanged = true;
+            stepSize = -abs(stepSize);
+            marchDistance += stepSize;
+            marchDistance = max(marchDistance, 0.0);
+            viewSpacePosition = fromViewSpacePosition + viewSpaceDirection * marchDistance;
+            continue;
+        }
+
+        geometryDepth = texture(depthTexture, textureCoords).r;
+        rayDepth = length(viewSpacePosition);
+
+        if (geometryDepth < rayDepth) {
+            // Step back.
+            hasHitOccurred = true;
+            if (stepSize > 0.0) {
+                hasStepSizeChanged = true;
+                stepSize *= -0.5;
+            }
+        } else if (geometryDepth > rayDepth) {
+            // Step forward.
+            if (stepSize < 0.0) {
+                hasStepSizeChanged = true;
+                stepSize *= -0.5;
+            }
+        } else {
+            // The ray hits a geometry exactly. This is very unlikely, but we handle this case as a
+            // theoretical possibility.
+            return RayMarchResult(true, rayDepth, normalize(viewSpacePosition), textureCoords);
+        }
+
+        marchDistance += stepSize;
+        marchDistance = max(marchDistance, 0.0);
+        viewSpacePosition = fromViewSpacePosition + viewSpaceDirection * marchDistance;
+    }
+
+    if (!hasHitOccurred) {
+        if (!hasStepSizeChanged) {
+            // The ray goes into the sky.
+            return RayMarchResult(true, 1e5, viewSpaceDirection, vec2(0.0));
+        }
+        // The ray goes out of bounds, and we are unsure if it is a hit or not.
+        return RayMarchResult(false, 0.0, vec3(0.0), vec2(0.0));
+    }
+
+    // Step back so that the ray is outside the geometry.
+    stepSize = -abs(stepSize);
+    for (int i = 0; geometryDepth < rayDepth && i < 10; ++i) {
+        marchDistance += stepSize;
+        marchDistance = max(marchDistance, 0.0);
+        viewSpacePosition = fromViewSpacePosition + viewSpaceDirection * marchDistance;
+        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        clipSpacePosition /= clipSpacePosition.w;
+        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
+
+        geometryDepth = texture(depthTexture, textureCoords).r;
+        rayDepth = length(viewSpacePosition);
+    }
+    return RayMarchResult(hasHitOccurred, rayDepth, normalize(viewSpacePosition), textureCoords);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Medium Effects
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 vec3 applyBeerLambert(vec3 surfaceColor,
                       float pathLength,
                       vec3 absorptionCoefficient,
@@ -153,7 +274,7 @@ vec3 applyAtmosphericScattering(vec3 surfaceColor,
     const vec3 BetaR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
     const vec3 BetaM = vec3(21e-6);
     const float G = 0.76;
-    const vec3 ESun = vec3(10.0);
+    const vec3 ESun = vec3(6.0);
 
     float cosTheta = dot(pathDirection, sunDirection);
 
@@ -163,84 +284,6 @@ vec3 applyAtmosphericScattering(vec3 surfaceColor,
     vec3 extinctionFactor = exp(-(BetaR + BetaM) * pathLength);
     vec3 radianceIn = (betaRTheta + betaMTheta) / (BetaR + BetaM) * ESun * (1.0 - extinctionFactor);
     return surfaceColor * extinctionFactor + radianceIn;
-}
-
-struct RayMarchResult
-{
-    bool isHit;
-    float depth;
-    vec3 viewSpaceDirection;
-    vec2 textureCoords;
-};
-
-RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection)
-{
-    vec3 viewSpacePosition = fromViewSpacePosition;
-    bool hasStepMultiplierChanged = false;
-    bool hasHitOccurred = false;
-    float stepMultiplier = 0.5;
-    float geometryDepth;
-    float rayDepth;
-    vec2 textureCoords;
-
-    for (int i = 0; i < 100; ++i) {
-        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
-        clipSpacePosition /= clipSpacePosition.w;
-        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
-        if (any(lessThan(textureCoords, vec2(0.0))) || any(greaterThan(textureCoords, vec2(1.0)))) {
-            // The ray is out of bounds. Try to step back a bit.
-            hasStepMultiplierChanged = true;
-            stepMultiplier = -abs(stepMultiplier);
-            viewSpacePosition += viewSpaceDirection * stepMultiplier;
-            continue;
-        }
-
-        geometryDepth = texture(u_opaqueDepthTexture, textureCoords).r;
-        rayDepth = length(viewSpacePosition);
-
-        if (geometryDepth < rayDepth) {
-            // Step back.
-            hasHitOccurred = true;
-            if (stepMultiplier > 0.0) {
-                hasStepMultiplierChanged = true;
-                stepMultiplier *= -0.5;
-            }
-        } else if (geometryDepth > rayDepth) {
-            // Step forward.
-            if (stepMultiplier < 0.0) {
-                hasStepMultiplierChanged = true;
-                stepMultiplier *= -0.5;
-            }
-        } else {
-            // The ray hits a geometry exactly. This is very unlikely, but we handle this case as a
-            // theoretical possibility.
-            return RayMarchResult(true, rayDepth, normalize(viewSpacePosition), textureCoords);
-        }
-
-        viewSpacePosition += viewSpaceDirection * stepMultiplier;
-    }
-
-    if (!hasHitOccurred) {
-        if (!hasStepMultiplierChanged) {
-            // The ray goes into the sky.
-            return RayMarchResult(true, 1e5, viewSpaceDirection, vec2(0.0));
-        }
-        // The ray goes out of bounds, and we are unsure if it is a hit or not.
-        return RayMarchResult(false, 0.0, vec3(0.0), vec2(0.0));
-    }
-
-    // Step back so that the ray is outside the geometry.
-    vec3 stepVector = viewSpaceDirection * -abs(stepMultiplier);
-    for (int i = 0; geometryDepth < rayDepth && i < 10; ++i) {
-        viewSpacePosition += stepVector;
-        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
-        clipSpacePosition /= clipSpacePosition.w;
-        textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
-
-        geometryDepth = texture(u_opaqueDepthTexture, textureCoords).r;
-        rayDepth = length(viewSpacePosition);
-    }
-    return RayMarchResult(hasHitOccurred, rayDepth, normalize(viewSpacePosition), textureCoords);
 }
 
 vec3 applyMediumEffects(
@@ -264,11 +307,24 @@ vec3 applyMediumEffects(
     return applyAtmosphericScattering(surfaceColor, pathLength * 10.0, pathDirection, sunDirection);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lighting
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+vec3 getDirectionalLightColor(vec3 direction, vec3 sunDirection)
+{
+    float intensity = max(dot(direction, sunDirection), 0.0);
+    return vec3(1.0) * intensity;
+}
+
 vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
                                              vec3 viewSpaceDirection,
                                              vec2 textureCoords,
                                              vec3 fromViewSpacePosition,
-                                             vec3 viewSpaceSunDirection)
+                                             vec3 viewSpaceSunDirection,
+                                             sampler2D albedoTexture,
+                                             sampler2D normalTexture,
+                                             mat4 viewSpaceConversionMatrix)
 {
     int mediumType;
     vec3 surfaceColor;
@@ -289,16 +345,17 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
     } else {
         vec3 albedo;
         {
-            vec4 albedoData = texture(u_opaqueAlbedoTexture, textureCoords);
+            vec4 albedoData = texture(albedoTexture, textureCoords);
             albedo = linearColorFromSRGB(albedoData.rgb);
             mediumType = blockTypeFromFloat(albedoData.a);
         }
 
         vec3 viewSpacePosition = viewSpaceDirection * depth;
-        vec3 viewSpaceNormal = normalize(texture(u_opaqueNormalTexture, textureCoords).xyz);
+        vec3 viewSpaceNormal = normalize(texture(normalTexture, textureCoords).xyz);
 
         vec3 lightColor = getDirectionalLightColor(viewSpaceNormal, viewSpaceSunDirection);
-        lightColor *= getNonOccludedProbability(viewSpacePosition);
+        lightColor *= getNonOccludedProbability(
+            (viewSpaceConversionMatrix * vec4(viewSpacePosition, 1.0)).xyz);
         lightColor += 0.2; // Ambient light
         surfaceColor = lightColor * albedo;
 
@@ -314,22 +371,14 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
                               viewSpaceSunDirection);
 }
 
-vec3 toneMapACES(vec3 color)
-{
-    // ACES filmic tone mapping curve:
-    // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-
-    const float A = 2.51;
-    const float B = 0.03;
-    const float C = 2.43;
-    const float D = 0.59;
-    const float E = 0.14;
-    return (color * (A * color + B)) / (color * (C * color + D) + E);
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Main Function
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void main()
 {
     const vec3 WorldSpaceSunDirection = normalize(vec3(1.5, 1.0, 2.0));
+
     vec3 viewSpaceSunDirection = (u_viewMatrix * vec4(WorldSpaceSunDirection, 0.0)).xyz;
 
     float opaqueDepth = texture(u_opaqueDepthTexture, v_textureCoords).r;
@@ -344,7 +393,10 @@ void main()
                                                               viewSpaceDirection,
                                                               v_textureCoords,
                                                               vec3(0.0),
-                                                              viewSpaceSunDirection);
+                                                              viewSpaceSunDirection,
+                                                              u_opaqueAlbedoTexture,
+                                                              u_opaqueNormalTexture,
+                                                              mat4(1.0));
     } else {
         // Handle water reflections and refractions.
         // Screen-space reflections and refractions may run into positions not covered by the
@@ -353,19 +405,18 @@ void main()
 
         vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
         float cosTheta = dot(viewSpaceNormal, -viewSpaceDirection);
+        bool isAboveWater = cosTheta >= 0.0;
 
         float incomingRefractiveIndex;
         float outgoingRefractiveIndex;
-        if (cosTheta < 0.0) {
-            // Under water
+        if (isAboveWater) {
+            incomingRefractiveIndex = 1.0;
+            outgoingRefractiveIndex = WaterRefractiveIndex;
+        } else {
             viewSpaceNormal = -viewSpaceNormal;
             cosTheta = -cosTheta;
             incomingRefractiveIndex = WaterRefractiveIndex;
             outgoingRefractiveIndex = 1.0;
-        } else {
-            // Above water
-            incomingRefractiveIndex = 1.0;
-            outgoingRefractiveIndex = WaterRefractiveIndex;
         }
 
         vec3 viewSpaceReflectedDirection = reflect(viewSpaceDirection, viewSpaceNormal);
@@ -389,31 +440,52 @@ void main()
 
         vec3 reflectedColor = vec3(0.0);
         {
-            RayMarchResult result = rayMarch(viewSpaceWaterPosition, viewSpaceReflectedDirection);
+            vec3 reflectedViewSpaceWaterPosition
+                = (u_originalToReflectedViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
+            vec3 reflectedViewSpaceReflectedDirection
+                = (u_originalToReflectedViewMatrix * vec4(viewSpaceReflectedDirection, 0.0)).xyz;
+            RayMarchResult result = rayMarch(reflectedViewSpaceWaterPosition,
+                                             reflectedViewSpaceReflectedDirection,
+                                             isAboveWater ? u_reflectedAboveWaterDepthTexture
+                                                          : u_reflectedUnderWaterDepthTexture);
             if (result.isHit) {
-                reflectedColor = getOpaqueFragmentColorWithMediumEffects(result.depth,
-                                                                         result.viewSpaceDirection,
-                                                                         result.textureCoords,
-                                                                         viewSpaceWaterPosition,
-                                                                         viewSpaceSunDirection);
+                vec3 reflectedViewSpaceSunDirection
+                    = (u_originalToReflectedViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
+                reflectedColor = getOpaqueFragmentColorWithMediumEffects(
+                    result.depth,
+                    result.viewSpaceDirection,
+                    result.textureCoords,
+                    reflectedViewSpaceWaterPosition,
+                    reflectedViewSpaceSunDirection,
+                    isAboveWater ? u_reflectedAboveWaterAlbedoTexture
+                                 : u_reflectedUnderWaterAlbedoTexture,
+                    isAboveWater ? u_reflectedAboveWaterNormalTexture
+                                 : u_reflectedUnderWaterNormalTexture,
+                    u_reflectedToOriginalViewMatrix);
             }
         }
 
         vec3 refractedColor = vec3(0.0);
         if (length(viewSpaceRefractedDirection) > 1e-3) {
             // Not full reflection
-            RayMarchResult result = rayMarch(viewSpaceWaterPosition, viewSpaceRefractedDirection);
+            RayMarchResult result = rayMarch(viewSpaceWaterPosition,
+                                             viewSpaceRefractedDirection,
+                                             isAboveWater ? u_underWaterDepthTexture
+                                                          : u_aboveWaterDepthTexture);
             if (result.isHit) {
-                refractedColor = getOpaqueFragmentColorWithMediumEffects(result.depth,
-                                                                         result.viewSpaceDirection,
-                                                                         result.textureCoords,
-                                                                         viewSpaceWaterPosition,
-                                                                         viewSpaceSunDirection);
+                refractedColor = getOpaqueFragmentColorWithMediumEffects(
+                    result.depth,
+                    result.viewSpaceDirection,
+                    result.textureCoords,
+                    viewSpaceWaterPosition,
+                    viewSpaceSunDirection,
+                    isAboveWater ? u_underWaterAlbedoTexture : u_aboveWaterAlbedoTexture,
+                    isAboveWater ? u_underWaterNormalTexture : u_aboveWaterNormalTexture,
+                    mat4(1.0));
             }
         }
 
         vec3 surfaceColor = mix(refractedColor, reflectedColor, reflectionCoefficient);
-        surfaceColor *= vec3(0.4, 0.6, 0.8);
 
         int mediumType = blockTypeFromFloat(texture(u_translucentAlbedoTexture, v_textureCoords).a);
         f_color.rgb = applyMediumEffects(mediumType,

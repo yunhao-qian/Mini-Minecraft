@@ -2,8 +2,6 @@
 
 #include <glm/gtc/quaternion.hpp>
 
-#include <initializer_list>
-
 namespace minecraft {
 
 Camera Camera::getReflectedCamera(const float waterElevation) const
@@ -15,12 +13,9 @@ Camera Camera::getReflectedCamera(const float waterElevation) const
     };
     glm::quat reflectedOrientation;
     {
-        glm::vec3 right{_pose.right()};
-        glm::vec3 up{_pose.up()};
-        glm::vec3 forward{_pose.forward()};
-        for (const auto axis : {&right, &up, &forward}) {
-            axis->y = -axis->y;
-        }
+        const auto right{_pose.right()};
+        const glm::vec3 forward{_pose.forward().x, -_pose.forward().y, _pose.forward().z};
+        const auto up{glm::cross(right, forward)};
         const glm::mat3 reflectedRotation{right, up, -forward};
         reflectedOrientation = glm::quat_cast(reflectedRotation);
     }
