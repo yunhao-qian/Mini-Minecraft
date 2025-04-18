@@ -30,7 +30,9 @@ public:
 
     const glm::mat4 &projectionMatrix() const;
 
-    Camera getReflectedCamera(const float waterElevation) const;
+    Camera createReflectionCamera(const float waterElevation) const;
+
+    Camera createRefractionCamera(const float waterElevation, const float refractiveIndex) const;
 
 private:
     void updateProjectionMatrix();

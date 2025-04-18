@@ -1,6 +1,7 @@
 #include "opengl_widget.h"
 
 #include "shadow_map_camera.h"
+#include "water_wave.h"
 
 #include <glm/glm.hpp>
 
@@ -29,10 +30,8 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _shadowMapFramebuffer{this}
     , _opaqueGeometryFramebuffer{this}
     , _translucentGeometryFramebuffer{this}
-    , _aboveWaterGeometryFramebuffer{this}
-    , _underWaterGeometryFramebuffer{this}
-    , _reflectedAboveWaterGeometryFramebuffer{this}
-    , _reflectedUnderWaterGeometryFramebuffer{this}
+    , _reflectionGeometryFramebuffer{this}
+    , _refractionGeometryFramebuffer{this}
     , _quadVAO{0u}
 {
     // Allows the widget to accept focus for keyboard input.
@@ -115,10 +114,13 @@ void OpenGLWidget::initializeGL()
         },
         {
             "u_viewMatrix",
-            "u_projectionMatrix",
             "u_projectionMatrixInverse",
-            "u_originalToReflectedViewMatrix",
-            "u_reflectedToOriginalViewMatrix",
+            "u_reflectionProjectionMatrix",
+            "u_originalToReflectionViewMatrix",
+            "u_reflectionToOriginalViewMatrix",
+            "u_refractionProjectionMatrix",
+            "u_originalToRefractionViewMatrix",
+            "u_refractionToOriginalViewMatrix",
             "u_cameraNear",
             "u_cameraFar",
             "u_shadowViewMatrices",
@@ -131,18 +133,12 @@ void OpenGLWidget::initializeGL()
             "u_translucentDepthTexture",
             "u_translucentNormalTexture",
             "u_translucentAlbedoTexture",
-            "u_aboveWaterDepthTexture",
-            "u_aboveWaterNormalTexture",
-            "u_aboveWaterAlbedoTexture",
-            "u_underWaterDepthTexture",
-            "u_underWaterNormalTexture",
-            "u_underWaterAlbedoTexture",
-            "u_reflectedAboveWaterDepthTexture",
-            "u_reflectedAboveWaterNormalTexture",
-            "u_reflectedAboveWaterAlbedoTexture",
-            "u_reflectedUnderWaterDepthTexture",
-            "u_reflectedUnderWaterNormalTexture",
-            "u_reflectedUnderWaterAlbedoTexture",
+            "u_reflectionDepthTexture",
+            "u_reflectionNormalTexture",
+            "u_reflectionAlbedoTexture",
+            "u_refractionDepthTexture",
+            "u_refractionNormalTexture",
+            "u_refractionAlbedoTexture",
         });
 
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
@@ -172,18 +168,12 @@ void OpenGLWidget::initializeGL()
     _lightingProgram.setUniform("u_translucentDepthTexture", 6);
     _lightingProgram.setUniform("u_translucentNormalTexture", 7);
     _lightingProgram.setUniform("u_translucentAlbedoTexture", 8);
-    _lightingProgram.setUniform("u_aboveWaterDepthTexture", 9);
-    _lightingProgram.setUniform("u_aboveWaterNormalTexture", 10);
-    _lightingProgram.setUniform("u_aboveWaterAlbedoTexture", 11);
-    _lightingProgram.setUniform("u_underWaterDepthTexture", 12);
-    _lightingProgram.setUniform("u_underWaterNormalTexture", 13);
-    _lightingProgram.setUniform("u_underWaterAlbedoTexture", 14);
-    _lightingProgram.setUniform("u_reflectedAboveWaterDepthTexture", 15);
-    _lightingProgram.setUniform("u_reflectedAboveWaterNormalTexture", 16);
-    _lightingProgram.setUniform("u_reflectedAboveWaterAlbedoTexture", 17);
-    _lightingProgram.setUniform("u_reflectedUnderWaterDepthTexture", 18);
-    _lightingProgram.setUniform("u_reflectedUnderWaterNormalTexture", 19);
-    _lightingProgram.setUniform("u_reflectedUnderWaterAlbedoTexture", 20);
+    _lightingProgram.setUniform("u_reflectionDepthTexture", 9);
+    _lightingProgram.setUniform("u_reflectionNormalTexture", 10);
+    _lightingProgram.setUniform("u_reflectionAlbedoTexture", 11);
+    _lightingProgram.setUniform("u_refractionDepthTexture", 12);
+    _lightingProgram.setUniform("u_refractionNormalTexture", 13);
+    _lightingProgram.setUniform("u_refractionAlbedoTexture", 14);
 
     // The lighting pass does not need any vertex, index, or instance data, but we need a dummy VAO
     // for it.
@@ -193,9 +183,7 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
-    // TODO: Replace the hardcoded water level.
-    constexpr auto WaterElevation{138.0f - 0.5f};
-
+    const auto waterElevation{138.0f + getAverageWaterWaveOffset()};
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
 
@@ -205,8 +193,10 @@ void OpenGLWidget::paintGL()
     glm::vec3 cameraPosition;
     float cameraNear;
     float cameraFar;
-    glm::mat4 reflectedViewMatrix;
-    glm::mat4 reflectedProjectionMatrix;
+    glm::mat4 reflectionViewMatrix;
+    glm::mat4 reflectionProjectionMatrix;
+    glm::mat4 refractionViewMatrix;
+    glm::mat4 refractionProjectionMatrix;
     {
         const std::lock_guard lock{_scene.playerMutex()};
         const auto &camera{_scene.player().getSyncedCamera()};
@@ -216,9 +206,16 @@ void OpenGLWidget::paintGL()
         cameraPosition = camera.pose().position();
         cameraNear = camera.near();
         cameraFar = camera.far();
-        const auto reflectedCamera{camera.getReflectedCamera(WaterElevation)};
-        reflectedViewMatrix = reflectedCamera.pose().viewMatrix();
-        reflectedProjectionMatrix = reflectedCamera.projectionMatrix();
+        {
+            const auto reflectionCamera{camera.createReflectionCamera(waterElevation)};
+            reflectionViewMatrix = reflectionCamera.pose().viewMatrix();
+            reflectionProjectionMatrix = reflectionCamera.projectionMatrix();
+        }
+        {
+            const auto refractionCamera{camera.createRefractionCamera(waterElevation, 1.02f)};
+            refractionViewMatrix = refractionCamera.pose().viewMatrix();
+            refractionProjectionMatrix = refractionCamera.projectionMatrix();
+        }
     }
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
@@ -271,36 +268,34 @@ void OpenGLWidget::paintGL()
             chunk->drawTranslucent();
         }
 
-        for (const auto isReflected : {false, true}) {
-            if (isReflected) {
-                _geometryProgram.setUniform("u_viewMatrix", reflectedViewMatrix);
-                _geometryProgram.setUniform("u_viewProjectionMatrix",
-                                            reflectedProjectionMatrix * reflectedViewMatrix);
-            }
-            for (const auto isAboveWater : {true, false}) {
-                if (isAboveWater) {
-                    _geometryProgram.setUniform("u_isAboveWaterOnly", 1);
-                    _geometryProgram.setUniform("u_isUnderWaterOnly", 0);
-                    if (isReflected) {
-                        _reflectedAboveWaterGeometryFramebuffer.bind();
-                    } else {
-                        _aboveWaterGeometryFramebuffer.bind();
-                    }
-                } else {
-                    _geometryProgram.setUniform("u_isAboveWaterOnly", 0);
-                    _geometryProgram.setUniform("u_isUnderWaterOnly", 1);
-                    if (isReflected) {
-                        _reflectedUnderWaterGeometryFramebuffer.bind();
-                    } else {
-                        _underWaterGeometryFramebuffer.bind();
-                    }
-                }
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                debugError();
-                for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-                    chunk->drawOpaque();
-                }
-            }
+        const auto isAboveWater{
+            cameraPosition.y
+            >= 138.0f + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
+
+        _geometryProgram.setUniform("u_viewMatrix", reflectionViewMatrix);
+        _geometryProgram.setUniform("u_viewProjectionMatrix",
+                                    reflectionProjectionMatrix * reflectionViewMatrix);
+        _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 1 : 0);
+        _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 0 : 1);
+
+        _reflectionGeometryFramebuffer.bind();
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        debugError();
+        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
+            chunk->drawOpaque();
+        }
+
+        _geometryProgram.setUniform("u_viewMatrix", refractionViewMatrix);
+        _geometryProgram.setUniform("u_viewProjectionMatrix",
+                                    refractionProjectionMatrix * refractionViewMatrix);
+        _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 0 : 1);
+        _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 1 : 0);
+
+        _refractionGeometryFramebuffer.bind();
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        debugError();
+        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
+            chunk->drawOpaque();
         }
     }
 
@@ -319,28 +314,27 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE6, _translucentGeometryFramebuffer.depthTexture()},
         {GL_TEXTURE7, _translucentGeometryFramebuffer.normalTexture()},
         {GL_TEXTURE8, _translucentGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE9, _aboveWaterGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE10, _aboveWaterGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE11, _aboveWaterGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE12, _underWaterGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE13, _underWaterGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE14, _underWaterGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE15, _reflectedAboveWaterGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE16, _reflectedAboveWaterGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE17, _reflectedAboveWaterGeometryFramebuffer.albedoTexture()},
-        {GL_TEXTURE18, _reflectedUnderWaterGeometryFramebuffer.depthTexture()},
-        {GL_TEXTURE19, _reflectedUnderWaterGeometryFramebuffer.normalTexture()},
-        {GL_TEXTURE20, _reflectedUnderWaterGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE9, _reflectionGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE10, _reflectionGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE11, _reflectionGeometryFramebuffer.albedoTexture()},
+        {GL_TEXTURE12, _refractionGeometryFramebuffer.depthTexture()},
+        {GL_TEXTURE13, _refractionGeometryFramebuffer.normalTexture()},
+        {GL_TEXTURE14, _refractionGeometryFramebuffer.albedoTexture()},
     });
 
     _lightingProgram.use();
     _lightingProgram.setUniform("u_viewMatrix", viewMatrix);
-    _lightingProgram.setUniform("u_projectionMatrix", projectionMatrix);
     _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
-    _lightingProgram.setUniform("u_originalToReflectedViewMatrix",
-                                reflectedViewMatrix * glm::inverse(viewMatrix));
-    _lightingProgram.setUniform("u_reflectedToOriginalViewMatrix",
-                                viewMatrix * glm::inverse(reflectedViewMatrix));
+    _lightingProgram.setUniform("u_reflectionProjectionMatrix", reflectionProjectionMatrix);
+    _lightingProgram.setUniform("u_originalToReflectionViewMatrix",
+                                reflectionViewMatrix * glm::inverse(viewMatrix));
+    _lightingProgram.setUniform("u_reflectionToOriginalViewMatrix",
+                                viewMatrix * glm::inverse(reflectionViewMatrix));
+    _lightingProgram.setUniform("u_refractionProjectionMatrix", refractionProjectionMatrix);
+    _lightingProgram.setUniform("u_originalToRefractionViewMatrix",
+                                refractionViewMatrix * glm::inverse(viewMatrix));
+    _lightingProgram.setUniform("u_refractionToOriginalViewMatrix",
+                                viewMatrix * glm::inverse(refractionViewMatrix));
     _lightingProgram.setUniform("u_cameraNear", cameraNear);
     _lightingProgram.setUniform("u_cameraFar", cameraFar);
     {
@@ -394,12 +388,6 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE12, 0u},
         {GL_TEXTURE13, 0u},
         {GL_TEXTURE14, 0u},
-        {GL_TEXTURE15, 0u},
-        {GL_TEXTURE16, 0u},
-        {GL_TEXTURE17, 0u},
-        {GL_TEXTURE18, 0u},
-        {GL_TEXTURE19, 0u},
-        {GL_TEXTURE20, 0u},
     });
 
     glEnable(GL_DEPTH_TEST);
@@ -413,10 +401,8 @@ void OpenGLWidget::resizeGL([[maybe_unused]] const int width, [[maybe_unused]] c
     for (const auto framebuffer : {
              &_opaqueGeometryFramebuffer,
              &_translucentGeometryFramebuffer,
-             &_aboveWaterGeometryFramebuffer,
-             &_underWaterGeometryFramebuffer,
-             &_reflectedAboveWaterGeometryFramebuffer,
-             &_reflectedUnderWaterGeometryFramebuffer,
+             &_reflectionGeometryFramebuffer,
+             &_refractionGeometryFramebuffer,
          }) {
         framebuffer->resizeViewport(deviceSize.width(), deviceSize.height());
     }

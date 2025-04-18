@@ -63,10 +63,8 @@ private:
     ShadowMapFramebuffer _shadowMapFramebuffer;
     Framebuffer _opaqueGeometryFramebuffer;
     Framebuffer _translucentGeometryFramebuffer;
-    Framebuffer _aboveWaterGeometryFramebuffer;
-    Framebuffer _underWaterGeometryFramebuffer;
-    Framebuffer _reflectedAboveWaterGeometryFramebuffer;
-    Framebuffer _reflectedUnderWaterGeometryFramebuffer;
+    Framebuffer _reflectionGeometryFramebuffer;
+    Framebuffer _refractionGeometryFramebuffer;
 
     GLuint _quadVAO;
 };

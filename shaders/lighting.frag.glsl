@@ -1,10 +1,13 @@
 const int ShadowMapCascadeCount = 4;
 
 uniform mat4 u_viewMatrix;
-uniform mat4 u_projectionMatrix;
 uniform mat4 u_projectionMatrixInverse;
-uniform mat4 u_originalToReflectedViewMatrix;
-uniform mat4 u_reflectedToOriginalViewMatrix;
+uniform mat4 u_reflectionProjectionMatrix;
+uniform mat4 u_originalToReflectionViewMatrix;
+uniform mat4 u_reflectionToOriginalViewMatrix;
+uniform mat4 u_refractionProjectionMatrix;
+uniform mat4 u_originalToRefractionViewMatrix;
+uniform mat4 u_refractionToOriginalViewMatrix;
 uniform float u_cameraNear;
 uniform float u_cameraFar;
 uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
@@ -17,18 +20,12 @@ uniform sampler2D u_opaqueAlbedoTexture;
 uniform sampler2D u_translucentDepthTexture;
 uniform sampler2D u_translucentNormalTexture;
 uniform sampler2D u_translucentAlbedoTexture;
-uniform sampler2D u_aboveWaterDepthTexture;
-uniform sampler2D u_aboveWaterNormalTexture;
-uniform sampler2D u_aboveWaterAlbedoTexture;
-uniform sampler2D u_underWaterDepthTexture;
-uniform sampler2D u_underWaterNormalTexture;
-uniform sampler2D u_underWaterAlbedoTexture;
-uniform sampler2D u_reflectedAboveWaterDepthTexture;
-uniform sampler2D u_reflectedAboveWaterNormalTexture;
-uniform sampler2D u_reflectedAboveWaterAlbedoTexture;
-uniform sampler2D u_reflectedUnderWaterDepthTexture;
-uniform sampler2D u_reflectedUnderWaterNormalTexture;
-uniform sampler2D u_reflectedUnderWaterAlbedoTexture;
+uniform sampler2D u_reflectionDepthTexture;
+uniform sampler2D u_reflectionNormalTexture;
+uniform sampler2D u_reflectionAlbedoTexture;
+uniform sampler2D u_refractionDepthTexture;
+uniform sampler2D u_refractionNormalTexture;
+uniform sampler2D u_refractionAlbedoTexture;
 
 in vec2 v_textureCoords;
 
@@ -169,7 +166,10 @@ struct RayMarchResult
     vec2 textureCoords;
 };
 
-RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection, sampler2D depthTexture)
+RayMarchResult rayMarch(vec3 fromViewSpacePosition,
+                        vec3 viewSpaceDirection,
+                        mat4 projectionMatrix,
+                        sampler2D depthTexture)
 {
     bool hasStepSizeChanged = false;
     bool hasHitOccurred = false;
@@ -183,8 +183,7 @@ RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection, sam
     vec2 textureCoords;
 
     for (int i = 0; i < 100; ++i) {
-        // Both the original and the reflected cameras share the same projection matrix.
-        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        vec4 clipSpacePosition = projectionMatrix * vec4(viewSpacePosition, 1.0);
         clipSpacePosition /= clipSpacePosition.w;
         textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
         if (any(lessThan(textureCoords, vec2(0.0))) || any(greaterThan(textureCoords, vec2(1.0)))) {
@@ -239,7 +238,7 @@ RayMarchResult rayMarch(vec3 fromViewSpacePosition, vec3 viewSpaceDirection, sam
         marchDistance += stepSize;
         marchDistance = max(marchDistance, 0.0);
         viewSpacePosition = fromViewSpacePosition + viewSpaceDirection * marchDistance;
-        vec4 clipSpacePosition = u_projectionMatrix * vec4(viewSpacePosition, 1.0);
+        vec4 clipSpacePosition = projectionMatrix * vec4(viewSpacePosition, 1.0);
         clipSpacePosition /= clipSpacePosition.w;
         textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
 
@@ -405,11 +404,10 @@ void main()
 
         vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
         float cosTheta = dot(viewSpaceNormal, -viewSpaceDirection);
-        bool isAboveWater = cosTheta >= 0.0;
 
         float incomingRefractiveIndex;
         float outgoingRefractiveIndex;
-        if (isAboveWater) {
+        if (cosTheta >= 0.0) {
             incomingRefractiveIndex = 1.0;
             outgoingRefractiveIndex = WaterRefractiveIndex;
         } else {
@@ -440,48 +438,52 @@ void main()
 
         vec3 reflectedColor = vec3(0.0);
         {
-            vec3 reflectedViewSpaceWaterPosition
-                = (u_originalToReflectedViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
-            vec3 reflectedViewSpaceReflectedDirection
-                = (u_originalToReflectedViewMatrix * vec4(viewSpaceReflectedDirection, 0.0)).xyz;
-            RayMarchResult result = rayMarch(reflectedViewSpaceWaterPosition,
-                                             reflectedViewSpaceReflectedDirection,
-                                             isAboveWater ? u_reflectedAboveWaterDepthTexture
-                                                          : u_reflectedUnderWaterDepthTexture);
+            vec3 reflectionViewSpaceWaterPosition
+                = (u_originalToReflectionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
+            vec3 reflectionViewSpaceReflectedDirection
+                = (u_originalToReflectionViewMatrix * vec4(viewSpaceReflectedDirection, 0.0)).xyz;
+            RayMarchResult result = rayMarch(reflectionViewSpaceWaterPosition,
+                                             reflectionViewSpaceReflectedDirection,
+                                             u_reflectionProjectionMatrix,
+                                             u_reflectionDepthTexture);
             if (result.isHit) {
-                vec3 reflectedViewSpaceSunDirection
-                    = (u_originalToReflectedViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
-                reflectedColor = getOpaqueFragmentColorWithMediumEffects(
-                    result.depth,
-                    result.viewSpaceDirection,
-                    result.textureCoords,
-                    reflectedViewSpaceWaterPosition,
-                    reflectedViewSpaceSunDirection,
-                    isAboveWater ? u_reflectedAboveWaterAlbedoTexture
-                                 : u_reflectedUnderWaterAlbedoTexture,
-                    isAboveWater ? u_reflectedAboveWaterNormalTexture
-                                 : u_reflectedUnderWaterNormalTexture,
-                    u_reflectedToOriginalViewMatrix);
+                vec3 reflectionViewSpaceSunDirection
+                    = (u_originalToReflectionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
+                reflectedColor
+                    = getOpaqueFragmentColorWithMediumEffects(result.depth,
+                                                              result.viewSpaceDirection,
+                                                              result.textureCoords,
+                                                              reflectionViewSpaceWaterPosition,
+                                                              reflectionViewSpaceSunDirection,
+                                                              u_reflectionAlbedoTexture,
+                                                              u_reflectionNormalTexture,
+                                                              u_reflectionToOriginalViewMatrix);
             }
         }
 
         vec3 refractedColor = vec3(0.0);
         if (length(viewSpaceRefractedDirection) > 1e-3) {
             // Not full reflection
-            RayMarchResult result = rayMarch(viewSpaceWaterPosition,
-                                             viewSpaceRefractedDirection,
-                                             isAboveWater ? u_underWaterDepthTexture
-                                                          : u_aboveWaterDepthTexture);
+            vec3 refractionViewSpaceWaterPosition
+                = (u_originalToRefractionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
+            vec3 refractionViewSpaceRefractedDirection
+                = (u_originalToRefractionViewMatrix * vec4(viewSpaceRefractedDirection, 0.0)).xyz;
+            RayMarchResult result = rayMarch(refractionViewSpaceWaterPosition,
+                                             refractionViewSpaceRefractedDirection,
+                                             u_refractionProjectionMatrix,
+                                             u_refractionDepthTexture);
             if (result.isHit) {
-                refractedColor = getOpaqueFragmentColorWithMediumEffects(
-                    result.depth,
-                    result.viewSpaceDirection,
-                    result.textureCoords,
-                    viewSpaceWaterPosition,
-                    viewSpaceSunDirection,
-                    isAboveWater ? u_underWaterAlbedoTexture : u_aboveWaterAlbedoTexture,
-                    isAboveWater ? u_underWaterNormalTexture : u_aboveWaterNormalTexture,
-                    mat4(1.0));
+                vec3 refractionViewSpaceSunDirection
+                    = (u_originalToRefractionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
+                refractedColor
+                    = getOpaqueFragmentColorWithMediumEffects(result.depth,
+                                                              result.viewSpaceDirection,
+                                                              result.textureCoords,
+                                                              refractionViewSpaceWaterPosition,
+                                                              refractionViewSpaceSunDirection,
+                                                              u_refractionAlbedoTexture,
+                                                              u_refractionNormalTexture,
+                                                              u_refractionToOriginalViewMatrix);
             }
         }
 

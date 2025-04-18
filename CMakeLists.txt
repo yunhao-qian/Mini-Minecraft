@@ -74,6 +74,8 @@ set(PROJECT_SOURCES
     src/terrain_streamer.h
     src/terrain_streamer.cpp
     src/vertex_attribute.h
+    src/water_wave.h
+    src/water_wave.cpp
 )
 
 qt_add_executable(mini-minecraft
