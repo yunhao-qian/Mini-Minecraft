@@ -18,7 +18,7 @@ public:
            const int height,
            const float fieldOfViewY = 45.0f,
            const float near = 0.1f,
-           const float far = 1000.0f);
+           const float far = 512.0f);
 
     const Pose &pose() const;
     void setPose(const Pose &pose);
