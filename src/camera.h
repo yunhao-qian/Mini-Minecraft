@@ -1,9 +1,12 @@
 #ifndef MINI_MINECRAFT_CAMERA_H
 #define MINI_MINECRAFT_CAMERA_H
 
+#include "aligned_box_3d.h"
 #include "pose.h"
 
 #include <glm/glm.hpp>
+
+#include <array>
 
 namespace minecraft {
 
@@ -28,14 +31,19 @@ public:
 
     void resizeViewport(const int width, const int height);
 
+    const glm::mat4 viewMatrix() const;
     const glm::mat4 &projectionMatrix() const;
+    const glm::mat4 &viewProjectionMatrix() const;
 
     Camera createReflectionCamera(const float waterElevation) const;
 
     Camera createRefractionCamera(const float waterElevation, const float refractiveIndex) const;
 
+    bool isInViewFrustum(const AlignedBox3D &box) const;
+
 private:
     void updateProjectionMatrix();
+    void updateViewProjectionMatrix();
 
     Pose _pose;
     float _fieldOfViewY;
@@ -43,6 +51,8 @@ private:
     float _near;
     float _far;
     glm::mat4 _projectionMatrix;
+    glm::mat4 _viewProjectionMatrix;
+    std::array<glm::vec4, 6> _frustumPlanes;
 };
 
 inline Camera::Camera(const Pose &pose,
@@ -68,6 +78,7 @@ inline const Pose &Camera::pose() const
 inline void Camera::setPose(const Pose &pose)
 {
     _pose = pose;
+    updateViewProjectionMatrix();
 }
 
 inline float Camera::fieldOfViewY() const
@@ -97,14 +108,25 @@ inline void Camera::resizeViewport(const int width, const int height)
     updateProjectionMatrix();
 }
 
+inline const glm::mat4 Camera::viewMatrix() const
+{
+    return _pose.viewMatrix();
+}
+
 inline const glm::mat4 &Camera::projectionMatrix() const
 {
     return _projectionMatrix;
 }
 
+inline const glm::mat4 &Camera::viewProjectionMatrix() const
+{
+    return _viewProjectionMatrix;
+}
+
 inline void Camera::updateProjectionMatrix()
 {
     _projectionMatrix = glm::perspective(glm::radians(_fieldOfViewY), _aspect, _near, _far);
+    updateViewProjectionMatrix();
 }
 
 } // namespace minecraft

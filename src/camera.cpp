@@ -58,4 +58,33 @@ Camera Camera::createRefractionCamera(const float waterElevation, const float re
     return camera;
 }
 
+bool Camera::isInViewFrustum(const AlignedBox3D &box) const
+{
+    for (const auto &plane : _frustumPlanes) {
+        const glm::vec3 normal{plane};
+        const glm::vec3 innerMostPoint{
+            normal.x >= 0.0f ? box.maxPoint().x : box.minPoint().x,
+            normal.y >= 0.0f ? box.maxPoint().y : box.minPoint().y,
+            normal.z >= 0.0f ? box.maxPoint().z : box.minPoint().z,
+        };
+        if (glm::dot(normal, innerMostPoint) + plane.w < 0.0f) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void Camera::updateViewProjectionMatrix()
+{
+    _viewProjectionMatrix = _projectionMatrix * _pose.viewMatrix();
+
+    const auto m{glm::transpose(_viewProjectionMatrix)};
+    _frustumPlanes[0] = m[3] + m[0]; // Left
+    _frustumPlanes[1] = m[3] - m[0]; // Right
+    _frustumPlanes[2] = m[3] + m[1]; // Bottom
+    _frustumPlanes[3] = m[3] - m[1]; // Top
+    _frustumPlanes[4] = m[3] + m[2]; // Near
+    _frustumPlanes[5] = m[3] - m[2]; // Far
+}
+
 } // namespace minecraft

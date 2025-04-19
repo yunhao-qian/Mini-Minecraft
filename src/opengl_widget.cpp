@@ -10,6 +10,7 @@
 
 #include <initializer_list>
 #include <mutex>
+#include <optional>
 #include <ranges>
 
 namespace minecraft {
@@ -187,36 +188,15 @@ void OpenGLWidget::paintGL()
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
 
-    ShadowMapCamera shadowMapCamera;
-    glm::mat4 viewMatrix;
-    glm::mat4 projectionMatrix;
-    glm::vec3 cameraPosition;
-    float cameraNear;
-    float cameraFar;
-    glm::mat4 reflectionViewMatrix;
-    glm::mat4 reflectionProjectionMatrix;
-    glm::mat4 refractionViewMatrix;
-    glm::mat4 refractionProjectionMatrix;
+    std::optional<Camera> camera;
     {
         const std::lock_guard lock{_scene.playerMutex()};
-        const auto &camera{_scene.player().getSyncedCamera()};
-        shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), camera);
-        viewMatrix = camera.pose().viewMatrix();
-        projectionMatrix = camera.projectionMatrix();
-        cameraPosition = camera.pose().position();
-        cameraNear = camera.near();
-        cameraFar = camera.far();
-        {
-            const auto reflectionCamera{camera.createReflectionCamera(waterElevation)};
-            reflectionViewMatrix = reflectionCamera.pose().viewMatrix();
-            reflectionProjectionMatrix = reflectionCamera.projectionMatrix();
-        }
-        {
-            const auto refractionCamera{camera.createRefractionCamera(waterElevation, 1.02f)};
-            refractionViewMatrix = refractionCamera.pose().viewMatrix();
-            refractionProjectionMatrix = refractionCamera.projectionMatrix();
-        }
+        camera = _scene.player().getSyncedCamera();
     }
+    ShadowMapCamera shadowMapCamera;
+    shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), *camera);
+    const auto reflectionCamera{camera->createReflectionCamera(waterElevation)};
+    const auto refractionCamera{camera->createRefractionCamera(waterElevation, 1.02f)};
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
     glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
@@ -230,6 +210,8 @@ void OpenGLWidget::paintGL()
     }
 
     {
+        const auto &cameraPosition{camera->pose().position()};
+
         const std::lock_guard lock{_scene.terrainMutex()};
         const auto updateResult{_terrainStreamer.update(cameraPosition)};
 
@@ -249,8 +231,8 @@ void OpenGLWidget::paintGL()
 
         _geometryProgram.use();
         _geometryProgram.setUniform("u_time", time);
-        _geometryProgram.setUniform("u_viewMatrix", viewMatrix);
-        _geometryProgram.setUniform("u_viewProjectionMatrix", projectionMatrix * viewMatrix);
+        _geometryProgram.setUniform("u_viewMatrix", camera->viewMatrix());
+        _geometryProgram.setUniform("u_viewProjectionMatrix", camera->viewProjectionMatrix());
         _geometryProgram.setUniform("u_isAboveWaterOnly", 0);
         _geometryProgram.setUniform("u_isUnderWaterOnly", 0);
 
@@ -258,23 +240,27 @@ void OpenGLWidget::paintGL()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugError();
         for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            chunk->drawOpaque();
+            if (camera->isInViewFrustum(chunk->boundingBox())) {
+                chunk->drawOpaque();
+            }
         }
 
         _translucentGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugError();
         for (const auto chunk : updateResult.chunksWithTranslucentFaces) {
-            chunk->drawTranslucent();
+            if (camera->isInViewFrustum(chunk->boundingBox())) {
+                chunk->drawTranslucent();
+            }
         }
 
         const auto isAboveWater{
             cameraPosition.y
             >= 138.0f + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
 
-        _geometryProgram.setUniform("u_viewMatrix", reflectionViewMatrix);
+        _geometryProgram.setUniform("u_viewMatrix", reflectionCamera.viewMatrix());
         _geometryProgram.setUniform("u_viewProjectionMatrix",
-                                    reflectionProjectionMatrix * reflectionViewMatrix);
+                                    reflectionCamera.viewProjectionMatrix());
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 1 : 0);
         _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 0 : 1);
 
@@ -282,12 +268,14 @@ void OpenGLWidget::paintGL()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugError();
         for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            chunk->drawOpaque();
+            if (reflectionCamera.isInViewFrustum(chunk->boundingBox())) {
+                chunk->drawOpaque();
+            }
         }
 
-        _geometryProgram.setUniform("u_viewMatrix", refractionViewMatrix);
+        _geometryProgram.setUniform("u_viewMatrix", refractionCamera.viewMatrix());
         _geometryProgram.setUniform("u_viewProjectionMatrix",
-                                    refractionProjectionMatrix * refractionViewMatrix);
+                                    refractionCamera.viewProjectionMatrix());
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 0 : 1);
         _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 1 : 0);
 
@@ -295,7 +283,9 @@ void OpenGLWidget::paintGL()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         debugError();
         for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            chunk->drawOpaque();
+            if (refractionCamera.isInViewFrustum(chunk->boundingBox())) {
+                chunk->drawOpaque();
+            }
         }
     }
 
@@ -322,25 +312,27 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE14, _refractionGeometryFramebuffer.albedoTexture()},
     });
 
+    const auto viewMatrixInverse{glm::inverse(camera->viewMatrix())};
+
     _lightingProgram.use();
-    _lightingProgram.setUniform("u_viewMatrix", viewMatrix);
-    _lightingProgram.setUniform("u_projectionMatrixInverse", glm::inverse(projectionMatrix));
-    _lightingProgram.setUniform("u_reflectionProjectionMatrix", reflectionProjectionMatrix);
+    _lightingProgram.setUniform("u_viewMatrix", camera->viewMatrix());
+    _lightingProgram.setUniform("u_projectionMatrixInverse",
+                                glm::inverse(camera->projectionMatrix()));
+    _lightingProgram.setUniform("u_reflectionProjectionMatrix", reflectionCamera.projectionMatrix());
     _lightingProgram.setUniform("u_originalToReflectionViewMatrix",
-                                reflectionViewMatrix * glm::inverse(viewMatrix));
+                                reflectionCamera.viewMatrix() * viewMatrixInverse);
     _lightingProgram.setUniform("u_reflectionToOriginalViewMatrix",
-                                viewMatrix * glm::inverse(reflectionViewMatrix));
-    _lightingProgram.setUniform("u_refractionProjectionMatrix", refractionProjectionMatrix);
+                                camera->viewMatrix() * glm::inverse(reflectionCamera.viewMatrix()));
+    _lightingProgram.setUniform("u_refractionProjectionMatrix", refractionCamera.projectionMatrix());
     _lightingProgram.setUniform("u_originalToRefractionViewMatrix",
-                                refractionViewMatrix * glm::inverse(viewMatrix));
+                                refractionCamera.viewMatrix() * viewMatrixInverse);
     _lightingProgram.setUniform("u_refractionToOriginalViewMatrix",
-                                viewMatrix * glm::inverse(refractionViewMatrix));
-    _lightingProgram.setUniform("u_cameraNear", cameraNear);
-    _lightingProgram.setUniform("u_cameraFar", cameraFar);
+                                camera->viewMatrix() * glm::inverse(refractionCamera.viewMatrix()));
+    _lightingProgram.setUniform("u_cameraNear", camera->near());
+    _lightingProgram.setUniform("u_cameraFar", camera->far());
     {
         // In the lighting pass, positions are transformed directly from the camera's view space to
         // the shadow map's view and clip spaces.
-        const auto viewMatrixInverse{glm::inverse(viewMatrix)};
         for (auto &shadowViewMatrix : shadowViewMatrices) {
             shadowViewMatrix = shadowViewMatrix * viewMatrixInverse;
         }

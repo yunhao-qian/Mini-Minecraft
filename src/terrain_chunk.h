@@ -1,6 +1,7 @@
 #ifndef MINI_MINECRAFT_TERRAIN_CHUNK_H
 #define MINI_MINECRAFT_TERRAIN_CHUNK_H
 
+#include "aligned_box_3d.h"
 #include "block_type.h"
 #include "direction.h"
 #include "instanced_renderer.h"
@@ -48,6 +49,8 @@ public:
     void drawTranslucent();
 
     void releaseRendererResources();
+
+    AlignedBox3D boundingBox() const;
 
     static glm::ivec2 alignToChunkOrigin(const glm::ivec2 xz);
 
@@ -187,6 +190,14 @@ inline void TerrainChunk::releaseRendererResources()
     _opaqueRenderer.releaseResources();
     _translucentRenderer.releaseResources();
     _rendererVersion = -1;
+}
+
+inline AlignedBox3D TerrainChunk::boundingBox() const
+{
+    return {
+        glm::vec3{_originXZ[0], 0.0f, _originXZ[1]},
+        glm::vec3{_originXZ[0] + SizeX, SizeY, _originXZ[1] + SizeZ},
+    };
 }
 
 inline glm::ivec2 TerrainChunk::alignToChunkOrigin(const glm::ivec2 xz)

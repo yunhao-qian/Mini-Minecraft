@@ -34,8 +34,7 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
     const auto baseShadowViewMatrix{
         glm::lookAt(cameraPosition, cameraPosition - lightDirection, glm::vec3{0.0f, 1.0f, 0.0f})};
 
-    const auto viewProjectionMatrixInverse{
-        glm::inverse(camera.projectionMatrix() * camera.pose().viewMatrix())};
+    const auto viewProjectionMatrixInverse{glm::inverse(camera.viewProjectionMatrix())};
 
     for (const auto cascadeIndex : std::views::iota(0, CascadeCount)) {
         constexpr auto Infinity{std::numeric_limits<float>::infinity()};
