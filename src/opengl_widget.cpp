@@ -65,9 +65,9 @@ void OpenGLWidget::initializeGL()
     // Blending is disabled by default. We do not need it because we will composite the opaque and
     // translucent contents manually.
 
-    // The only place that uses the clear color is the depth textures of the shadow map and geometry
-    // passes, where only the R channel is used to store the depth value.
-    glClearColor(1e5f, 0.0f, 0.0f, 0.0f);
+    // The clear color is only relevant for the depth textures used in the shadow map and geometry
+    // passes, with the R channel encoding the linear depth and the G channel encoding its square.
+    glClearColor(1e5f, 1e10f, 0.0f, 0.0f);
     debugError();
 
     _shadowDepthProgram.create(
