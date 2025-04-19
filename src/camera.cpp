@@ -78,6 +78,10 @@ void Camera::updateViewProjectionMatrix()
 {
     _viewProjectionMatrix = _projectionMatrix * _pose.viewMatrix();
 
+    // Clip-space plane: [a' b' c' d'] [x' y' z' w']^T = 0
+    // View-projection matrix: [x' y' z' w']^T = VP [x y z 1]^T
+    // Put the two together: ([a' b' c' d'] VP) [x y z 1]^T = 0
+    // Therefore, the parameters of a view frustum plane are given by [a' b' c' d'] VP.
     const auto m{glm::transpose(_viewProjectionMatrix)};
     _frustumPlanes[0] = m[3] + m[0]; // Left
     _frustumPlanes[1] = m[3] - m[0]; // Right
