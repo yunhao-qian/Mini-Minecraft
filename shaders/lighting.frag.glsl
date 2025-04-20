@@ -362,8 +362,7 @@ vec3 applyMediumEffects(
                                 vec3(0.01, 0.04, 0.06),
                                 vec3(1.0, 0.2, 0.0));
     }
-    // Hack: Scale the path length to make the atmospheric scattering more visible.
-    return applyAtmosphericScattering(surfaceColor, pathLength * 10.0, pathDirection, sunDirection);
+    return applyAtmosphericScattering(surfaceColor, pathLength, pathDirection, sunDirection);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -399,7 +398,14 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
         } else {
             surfaceColor = vec3(0.0);
         }
-        pathLength = 1e4;
+        vec3 worldSpaceDirection = normalize(
+            (inverse(u_viewMatrix) * vec4(viewSpaceDirection, 0.0)).xyz);
+        const float EarthRadius = 6378e3;
+        const float AtmosphereRadius = EarthRadius + 10e3;
+        float cosGamma = dot(worldSpaceDirection, vec3(0.0, 1.0, 0.0));
+        pathLength = sqrt(AtmosphereRadius * AtmosphereRadius
+                          - (1.0 - cosGamma * cosGamma) * EarthRadius * EarthRadius)
+                     - EarthRadius * cosGamma;
         viewSpacePathDirection = viewSpaceDirection;
     } else {
         vec3 albedo;
