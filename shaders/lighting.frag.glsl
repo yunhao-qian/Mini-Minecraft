@@ -352,7 +352,7 @@ vec3 applyMediumEffects(
         surfaceColor *= vec3(0.8, 0.8, 1.0);
         return applyBeerLambert(surfaceColor,
                                 pathLength,
-                                vec3(0.20, 0.14, 0.08),
+                                vec3(0.10, 0.07, 0.04),
                                 vec3(0.06, 0.08, 0.10));
     }
     if (mediumType == BlockTypeLava) {
@@ -460,38 +460,42 @@ void main()
         // Handle water reflections and refractions.
         // Screen-space reflections and refractions may run into positions not covered by the
         // geometry passes, so we use a very small refractive index to reduce visual artifacts.
-        const float WaterRefractiveIndex = 1.02;
+        const float EtaWater = 1.1;
 
         vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
-        float cosTheta = dot(viewSpaceNormal, -viewSpaceDirection);
+        float cosTheta1 = dot(viewSpaceNormal, -viewSpaceDirection);
 
-        float incomingRefractiveIndex;
-        float outgoingRefractiveIndex;
-        if (cosTheta >= 0.0) {
-            incomingRefractiveIndex = 1.0;
-            outgoingRefractiveIndex = WaterRefractiveIndex;
+        float eta1;
+        float eta2;
+        if (cosTheta1 >= 0.0) {
+            eta1 = 1.0;
+            eta2 = EtaWater;
         } else {
             viewSpaceNormal = -viewSpaceNormal;
-            cosTheta = -cosTheta;
-            incomingRefractiveIndex = WaterRefractiveIndex;
-            outgoingRefractiveIndex = 1.0;
+            cosTheta1 = -cosTheta1;
+            eta1 = EtaWater;
+            eta2 = 1.0;
         }
 
         vec3 viewSpaceReflectedDirection = reflect(viewSpaceDirection, viewSpaceNormal);
-        vec3 viewSpaceRefractedDirection = refract(viewSpaceDirection,
-                                                   viewSpaceNormal,
-                                                   incomingRefractiveIndex
-                                                       / outgoingRefractiveIndex);
+        vec3 viewSpaceRefractedDirection = refract(viewSpaceDirection, viewSpaceNormal, eta1 / eta2);
+        bool isFullReflection = length(viewSpaceRefractedDirection) < 1e-3;
 
-        // Schlick's approximation:
-        // https://en.wikipedia.org/wiki/Schlick%27s_approximation
         float reflectionCoefficient;
-        {
-            float r0 = (incomingRefractiveIndex - outgoingRefractiveIndex)
-                       / (incomingRefractiveIndex + outgoingRefractiveIndex);
-            r0 *= r0;
-            reflectionCoefficient = r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5.0);
-            reflectionCoefficient = clamp(reflectionCoefficient, 0.0, 1.0);
+        if (isFullReflection) {
+            reflectionCoefficient = 1.0;
+        } else {
+            float cosTheta2 = dot(-viewSpaceNormal, viewSpaceRefractedDirection);
+
+            float eta2CosTheta1 = eta2 * cosTheta1;
+            float eta1CosTheta2 = eta1 * cosTheta2;
+            float fs = (eta2CosTheta1 - eta1CosTheta2) / (eta2CosTheta1 + eta1CosTheta2);
+
+            float eta1CosTheta1 = eta1 * cosTheta1;
+            float eta2CosTheta2 = eta2 * cosTheta2;
+            float fp = (eta1CosTheta1 - eta2CosTheta2) / (eta1CosTheta1 + eta2CosTheta2);
+
+            reflectionCoefficient = 0.5 * (fs * fs + fp * fp);
         }
 
         vec3 viewSpaceWaterPosition = viewSpaceDirection * translucentDepth;
@@ -522,7 +526,7 @@ void main()
         }
 
         vec3 refractedColor = vec3(0.0);
-        if (length(viewSpaceRefractedDirection) > 1e-3) {
+        if (!isFullReflection) {
             // Not full reflection
             vec3 refractionViewSpaceWaterPosition
                 = (u_originalToRefractionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;

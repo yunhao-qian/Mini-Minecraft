@@ -196,7 +196,7 @@ void OpenGLWidget::paintGL()
     ShadowMapCamera shadowMapCamera;
     shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), *camera);
     const auto reflectionCamera{camera->createReflectionCamera(waterElevation)};
-    const auto refractionCamera{camera->createRefractionCamera(waterElevation, 1.02f)};
+    const auto refractionCamera{camera->createRefractionCamera(waterElevation, 1.1f)};
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
     glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
