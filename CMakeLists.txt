@@ -16,6 +16,8 @@ else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 find_package(Qt6 REQUIRED COMPONENTS Gui OpenGL OpenGLWidgets Widgets)
 
 include(FetchContent)
