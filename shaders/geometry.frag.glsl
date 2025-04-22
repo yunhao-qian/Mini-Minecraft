@@ -28,8 +28,7 @@ void main()
         discard;
     }
 
-    vec3 viewSpacePosition = (u_viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz;
-    f_depth = length(viewSpacePosition);
+    f_depth = length((u_viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz);
 
     vec3 textureCoords = vec3(v_textureCoords, float(v_textureIndex));
 
@@ -52,9 +51,8 @@ void main()
 
     // The medium types of the front and back faces may differ, so we determine the actual medium
     // type from the camera's perspective.
-    bool isFrontFace = dot(v_viewSpaceNormal, viewSpacePosition) < 0.0;
     int actualMediumType;
-    if (isFrontFace) {
+    if (gl_FrontFacing) {
         if (v_mediumType == BlockTypeWater && v_worldSpacePosition.y > v_waterElevation) {
             actualMediumType = BlockTypeAir;
         } else {
