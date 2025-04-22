@@ -50,7 +50,7 @@ void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
     _context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer);
     _context->debugError();
-    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
     _context->debugError();
     _context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                         GL_DEPTH_ATTACHMENT,

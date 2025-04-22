@@ -43,7 +43,7 @@ void Framebuffer::resizeViewport(const int width, const int height)
     _context->debugError();
     _context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer);
     _context->debugError();
-    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, _width, _height);
+    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, _width, _height);
     _context->debugError();
     _context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                         GL_DEPTH_ATTACHMENT,
