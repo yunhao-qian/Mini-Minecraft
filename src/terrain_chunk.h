@@ -43,20 +43,10 @@ public:
 
     glm::ivec2 originXZ() const { return _originXZ; }
 
-    const TerrainChunk *getNeighbor(const Direction direction) const
-    {
-        return *getNeighborPointer(*this, direction);
-    }
+    const TerrainChunk *getNeighbor(const Direction direction) const;
+    TerrainChunk *getNeighbor(const Direction direction);
 
-    TerrainChunk *getNeighbor(const Direction direction)
-    {
-        return *getNeighborPointer(*this, direction);
-    }
-
-    void setNeighbor(const Direction direction, TerrainChunk *const chunk)
-    {
-        *getNeighborPointer(*this, direction) = chunk;
-    }
+    void setNeighbor(const Direction direction, TerrainChunk *const chunk);
 
     BlockType getBlockAtLocal(const glm::ivec3 &position) const
     {
@@ -163,6 +153,21 @@ private:
     InstancedRenderer _translucentRenderer;
     std::int32_t _rendererVersion;
 };
+
+inline const TerrainChunk *TerrainChunk::getNeighbor(const Direction direction) const
+{
+    return *getNeighborPointer(*this, direction);
+}
+
+inline TerrainChunk *TerrainChunk::getNeighbor(const Direction direction)
+{
+    return *getNeighborPointer(*this, direction);
+}
+
+inline void TerrainChunk::setNeighbor(const Direction direction, TerrainChunk *const chunk)
+{
+    *getNeighborPointer(*this, direction) = chunk;
+}
 
 } // namespace minecraft
 

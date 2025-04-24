@@ -15,9 +15,8 @@ namespace minecraft {
 class Terrain
 {
 public:
-    const TerrainChunk *getChunk(const glm::ivec2 xz) const { return getTrunkImpl(*this, xz); }
-
-    TerrainChunk *getChunk(const glm::ivec2 xz) { return getTrunkImpl(*this, xz); }
+    const TerrainChunk *getChunk(const glm::ivec2 xz) const;
+    TerrainChunk *getChunk(const glm::ivec2 xz);
 
     void setChunk(std::unique_ptr<TerrainChunk> chunk);
 
@@ -76,6 +75,16 @@ private:
 
     std::unordered_map<glm::ivec2, std::unique_ptr<TerrainChunk>, IVec2Hash> _chunks;
 };
+
+inline const TerrainChunk *Terrain::getChunk(const glm::ivec2 xz) const
+{
+    return getTrunkImpl(*this, xz);
+}
+
+inline TerrainChunk *Terrain::getChunk(const glm::ivec2 xz)
+{
+    return getTrunkImpl(*this, xz);
+}
 
 } // namespace minecraft
 
