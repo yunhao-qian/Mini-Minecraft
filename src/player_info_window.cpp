@@ -92,14 +92,14 @@ PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
     }
 }
 
-void PlayerInfoWindow::setPlayerInfo(const PlayerInfoDisplayData &data)
+void PlayerInfoWindow::setPlayerInfo(const PlayerInfoDisplayData &displayData)
 {
-    _positionLabel->setText(vec3ToString(data.position));
-    _velocityLabel->setText(vec3ToString(data.velocity));
-    _accelerationLabel->setText(vec3ToString(data.acceleration));
-    _lookVectorLabel->setText(vec3ToString(data.lookVector));
-    _chunkLabel->setText(ivec2ToString(data.chunk));
-    _terrainZoneLabel->setText(intToString(data.terrainZone));
+    _positionLabel->setText(vec3ToString(displayData.position));
+    _velocityLabel->setText(vec3ToString(displayData.velocity));
+    _accelerationLabel->setText(vec3ToString(displayData.acceleration));
+    _lookVectorLabel->setText(vec3ToString(displayData.lookVector));
+    _chunkLabel->setText(ivec2ToString(displayData.chunk));
+    _terrainZoneLabel->setText(intToString(displayData.terrainZone));
 }
 
 void PlayerInfoWindow::showEvent(QShowEvent *const event)

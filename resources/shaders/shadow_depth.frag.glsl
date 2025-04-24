@@ -1,3 +1,5 @@
+#version 410 core
+
 in float v_shadowViewSpaceDepth;
 
 layout(location = 0) out vec2 f_depth;

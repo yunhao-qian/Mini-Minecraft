@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
-#define MINI_MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
+#ifndef MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
+#define MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
 
 #include "terrain_chunk.h"
 #include "terrain_streamer.h"
@@ -16,7 +16,10 @@ namespace minecraft {
 class TerrainChunkGenerationTask : public QRunnable
 {
 public:
-    TerrainChunkGenerationTask(TerrainStreamer *const streamer, std::unique_ptr<TerrainChunk> chunk);
+    TerrainChunkGenerationTask(TerrainStreamer *const streamer, std::unique_ptr<TerrainChunk> chunk)
+        : _streamer{streamer}
+        , _chunk{std::move(chunk)}
+    {}
 
     void run() override;
 
@@ -27,12 +30,6 @@ private:
     std::unique_ptr<TerrainChunk> _chunk;
 };
 
-inline TerrainChunkGenerationTask::TerrainChunkGenerationTask(TerrainStreamer *const streamer,
-                                                              std::unique_ptr<TerrainChunk> chunk)
-    : _streamer{streamer}
-    , _chunk{std::move(chunk)}
-{}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H
+#endif // MINECRAFT_TERRAIN_CHUNK_GENERATION_TASK_H

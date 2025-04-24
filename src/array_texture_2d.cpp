@@ -1,5 +1,7 @@
 #include "array_texture_2d.h"
 
+#include "opengl_context.h"
+
 #include <QImage>
 
 #include <ranges>
@@ -14,10 +16,21 @@ void ArrayTexture2D::generate(const QString &fileName, const int tileRows, const
     }
     image = image.convertToFormat(QImage::Format_RGBA8888);
 
-    _context->glGenTextures(1, &_texture);
-    _context->debugError();
-    _context->glBindTexture(GL_TEXTURE_2D_ARRAY, _texture);
-    _context->debugError();
+    const auto context{OpenGLContext::instance()};
+
+    {
+        GLuint texture{0u};
+        context->glGenTextures(1, &texture);
+        context->checkError();
+        _texture = OpenGLObject{
+            texture,
+            [](OpenGLContext *const context, const GLuint texture) {
+                context->glDeleteTextures(1, &texture);
+            },
+        };
+    }
+    context->glBindTexture(GL_TEXTURE_2D_ARRAY, _texture.get());
+    context->checkError();
 
     const auto tileWidth{image.width() / tileColumns};
     const auto tileHeight{image.height() / tileRows};
@@ -27,17 +40,17 @@ void ArrayTexture2D::generate(const QString &fileName, const int tileRows, const
     for (auto level{0}, scaledTileWidth{tileWidth}, scaledTileHeight{tileHeight};
          scaledTileWidth > 0 && scaledTileHeight > 0;
          ++level, scaledTileWidth /= 2, scaledTileHeight /= 2) {
-        _context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
-                               level,
-                               GL_RGBA8,
-                               scaledTileWidth,
-                               scaledTileHeight,
-                               depth,
-                               0,
-                               GL_RGBA,
-                               GL_UNSIGNED_BYTE,
-                               nullptr);
-        _context->debugError();
+        context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
+                              level,
+                              GL_RGBA8,
+                              scaledTileWidth,
+                              scaledTileHeight,
+                              depth,
+                              0,
+                              GL_RGBA,
+                              GL_UNSIGNED_BYTE,
+                              nullptr);
+        context->checkError();
     }
 
     // Upload each tile to the texture memory.
@@ -49,36 +62,36 @@ void ArrayTexture2D::generate(const QString &fileName, const int tileRows, const
             // origins at the bottom-left corner.
             // https://doc.qt.io/qt-6/coordsys.html
             tileImage.mirror(false, true);
-            _context->glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
-                                      0,
-                                      0,
-                                      0,
-                                      tileIndex,
-                                      tileWidth,
-                                      tileHeight,
-                                      1,
-                                      GL_RGBA,
-                                      GL_UNSIGNED_BYTE,
-                                      tileImage.constBits());
-            _context->debugError();
+            context->glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
+                                     0,
+                                     0,
+                                     0,
+                                     tileIndex,
+                                     tileWidth,
+                                     tileHeight,
+                                     1,
+                                     GL_RGBA,
+                                     GL_UNSIGNED_BYTE,
+                                     tileImage.constBits());
+            context->checkError();
         }
     }
 
-    _context->glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-    _context->debugError();
+    context->glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    context->checkError();
 
     // Use nearest interpolation to create a more pixelated look.
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-    _context->debugError();
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    _context->debugError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    context->checkError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    context->checkError();
 
     // GL_REPEAT makes it possible to simulate water and lava animations by shifting the sampling
     // window.
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    _context->debugError();
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    _context->debugError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    context->checkError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    context->checkError();
 }
 
 } // namespace minecraft

@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_PLAYER_H
-#define MINI_MINECRAFT_PLAYER_H
+#ifndef MINECRAFT_PLAYER_H
+#define MINECRAFT_PLAYER_H
 
 #include "aligned_box_3d.h"
 #include "camera.h"
@@ -20,21 +20,60 @@ namespace minecraft {
 class Player : public Entity
 {
 public:
-    Player(const Pose &pose);
+    Player(const Pose &pose)
+        : Entity{pose.position(), glm::vec3{0.0f}, glm::vec3{0.0f}, MovementMode::Fly}
+        , _camera{Pose{}, 1280, 960}
+        , _orientation{pose.orientation()}
+        , _desiredOrientation{pose.orientation()}
+    {}
 
-    void resizeCameraViewport(const int width, const int height);
-    const Camera &getSyncedCamera();
+    void resizeCameraViewport(const int width, const int height)
+    {
+        _camera.resizeViewport(width, height);
+    }
 
-    const glm::quat &orientation() const;
+    const Camera &getSyncedCamera()
+    {
+        Pose cameraPose{position() + glm::vec3{0.0f, 1.5f, 0.0f}};
+        cameraPose.setOrientation(_orientation);
+        _camera.setPose(cameraPose);
+        return _camera;
+    }
 
-    const glm::quat &desiredOrientation() const;
-    void setDesiredOrientation(const glm::quat &orientation);
+    const glm::quat &orientation() const { return _orientation; }
 
-    AlignedBox3D boxCollider() const override;
+    const glm::quat &desiredOrientation() const { return _desiredOrientation; }
 
-    void updatePhysics(const float dT, const Terrain &terrain) override;
+    void setDesiredOrientation(const glm::quat &orientation) { _desiredOrientation = orientation; }
 
-    PlayerInfoDisplayData createPlayerInfoDisplayData() const;
+    AlignedBox3D boxCollider() const override
+    {
+        return {
+            position() - glm::vec3{0.5f, 0.0f, 0.5f},
+            position() + glm::vec3{0.5f, 2.0f, 0.5f},
+        };
+    }
+
+    void updatePhysics(const float dT, const Terrain &terrain) override
+    {
+        Entity::updatePhysics(dT, terrain);
+        const auto interpolation{1.0f - std::exp(-5.0f * dT)};
+        _orientation = glm::slerp(_orientation, _desiredOrientation, interpolation);
+    }
+
+    PlayerInfoDisplayData createPlayerInfoDisplayData() const
+    {
+        return {
+            .position{position()},
+            .velocity{velocity()},
+            .acceleration{previousAcceleration()},
+            .lookVector{_camera.pose().forward()},
+            .chunk{glm::ivec2{
+                glm::floor(glm::vec2{position().x, position().z}
+                           / glm::vec2{glm::ivec2{TerrainChunk::SizeX, TerrainChunk::SizeZ}})}},
+            .terrainZone = static_cast<int>(std::floor(position().y / 64.f)),
+        };
+    }
 
 private:
     Camera _camera;
@@ -42,70 +81,6 @@ private:
     glm::quat _desiredOrientation;
 };
 
-inline Player::Player(const Pose &pose)
-    : Entity{pose.position(), glm::vec3{0.0f}, glm::vec3{0.0f}, MovementMode::Fly}
-    , _camera{Pose{}, 1280, 960}
-    , _orientation{pose.orientation()}
-    , _desiredOrientation{pose.orientation()}
-{}
-
-inline void Player::resizeCameraViewport(const int width, const int height)
-{
-    _camera.resizeViewport(width, height);
-}
-
-inline const Camera &Player::getSyncedCamera()
-{
-    Pose cameraPose{position() + glm::vec3{0.0f, 1.5f, 0.0f}};
-    cameraPose.setOrientation(_orientation);
-    _camera.setPose(cameraPose);
-    return _camera;
-}
-
-inline const glm::quat &Player::orientation() const
-{
-    return _orientation;
-}
-
-inline const glm::quat &Player::desiredOrientation() const
-{
-    return _desiredOrientation;
-}
-
-inline void Player::setDesiredOrientation(const glm::quat &orientation)
-{
-    _desiredOrientation = orientation;
-}
-
-inline AlignedBox3D Player::boxCollider() const
-{
-    return {
-        position() - glm::vec3{0.5f, 0.0f, 0.5f},
-        position() + glm::vec3{0.5f, 2.0f, 0.5f},
-    };
-}
-
-inline void Player::updatePhysics(const float dT, const Terrain &terrain)
-{
-    Entity::updatePhysics(dT, terrain);
-    const auto interpolation{1.0f - std::exp(-5.0f * dT)};
-    _orientation = glm::slerp(_orientation, _desiredOrientation, interpolation);
-}
-
-inline PlayerInfoDisplayData Player::createPlayerInfoDisplayData() const
-{
-    return {
-        .position{position()},
-        .velocity{velocity()},
-        .acceleration{previousAcceleration()},
-        .lookVector{_camera.pose().forward()},
-        .chunk{glm::ivec2{
-            glm::floor(glm::vec2{position().x, position().z}
-                       / glm::vec2{glm::ivec2{TerrainChunk::SizeX, TerrainChunk::SizeZ}})}},
-        .terrainZone = static_cast<int>(std::floor(position().y / 64.f)),
-    };
-}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_PLAYER_H
+#endif // MINECRAFT_PLAYER_H

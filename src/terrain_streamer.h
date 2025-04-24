@@ -1,8 +1,7 @@
-#ifndef MINI_MINECRAFT_TERRAIN_STREAMER_H
-#define MINI_MINECRAFT_TERRAIN_STREAMER_H
+#ifndef MINECRAFT_TERRAIN_STREAMER_H
+#define MINECRAFT_TERRAIN_STREAMER_H
 
 #include "ivec2_hash.h"
-#include "opengl_context.h"
 #include "terrain.h"
 #include "terrain_chunk.h"
 
@@ -24,14 +23,15 @@ public:
         std::vector<TerrainChunk *> chunksWithTranslucentFaces;
     };
 
-    TerrainStreamer(OpenGLContext *const context, Terrain *const terrain);
+    TerrainStreamer(Terrain *const terrain)
+        : _terrain{terrain}
+    {}
 
     UpdateResult update(const glm::vec3 &cameraPosition);
 
 private:
     friend class TerrainChunkGenerationTask;
 
-    OpenGLContext *_context;
     Terrain *_terrain;
 
     std::mutex _mutex;
@@ -39,11 +39,6 @@ private:
     std::vector<std::unique_ptr<TerrainChunk>> _readyChunks;
 };
 
-inline TerrainStreamer::TerrainStreamer(OpenGLContext *const context, Terrain *const terrain)
-    : _context{context}
-    , _terrain{terrain}
-{}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_TERRAIN_STREAMER_H
+#endif // MINECRAFT_TERRAIN_STREAMER_H

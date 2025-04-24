@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_ALIGNED_BOX_3D_H
-#define MINI_MINECRAFT_ALIGNED_BOX_3D_H
+#ifndef MINECRAFT_ALIGNED_BOX_3D_H
+#define MINECRAFT_ALIGNED_BOX_3D_H
 
 #include <glm/glm.hpp>
 
@@ -8,10 +8,14 @@ namespace minecraft {
 class AlignedBox3D
 {
 public:
-    AlignedBox3D(const glm::vec3 &minPoint, const glm::vec3 &maxPoint);
+    AlignedBox3D(const glm::vec3 &minPoint, const glm::vec3 &maxPoint)
+        : _minPoint{minPoint}
+        , _maxPoint{maxPoint}
+    {}
 
-    const glm::vec3 &minPoint() const;
-    const glm::vec3 &maxPoint() const;
+    const glm::vec3 &minPoint() const { return _minPoint; }
+
+    const glm::vec3 &maxPoint() const { return _maxPoint; }
 
     bool sweep(const glm::vec3 &velocity,
                const AlignedBox3D &other,
@@ -23,21 +27,6 @@ private:
     glm::vec3 _maxPoint;
 };
 
-inline AlignedBox3D::AlignedBox3D(const glm::vec3 &minPoint, const glm::vec3 &maxPoint)
-    : _minPoint{minPoint}
-    , _maxPoint{maxPoint}
-{}
-
-inline const glm::vec3 &AlignedBox3D::minPoint() const
-{
-    return _minPoint;
-}
-
-inline const glm::vec3 &AlignedBox3D::maxPoint() const
-{
-    return _maxPoint;
-}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_ALIGNED_BOX_3D_H
+#endif // MINECRAFT_ALIGNED_BOX_3D_H

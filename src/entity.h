@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_ENTITY_H
-#define MINI_MINECRAFT_ENTITY_H
+#ifndef MINECRAFT_ENTITY_H
+#define MINECRAFT_ENTITY_H
 
 #include "aligned_box_3d.h"
 #include "block_type.h"
@@ -16,7 +16,14 @@ public:
     Entity(const glm::vec3 &position,
            const glm::vec3 &velocity,
            const glm::vec3 &acceleration,
-           const MovementMode);
+           const MovementMode movementMode)
+        : _position{position}
+        , _velocity{velocity}
+        , _acceleration{acceleration}
+        , _movementMode{movementMode}
+        , _previousAcceleration{0.0f}
+    {}
+
     Entity(const Entity &) = delete;
     Entity(Entity &&) = delete;
 
@@ -25,26 +32,34 @@ public:
     Entity &operator=(const Entity &) = delete;
     Entity &operator=(Entity &&) = delete;
 
-    const glm::vec3 &position() const;
-    void setPosition(const glm::vec3 &position);
+    const glm::vec3 &position() const { return _position; }
 
-    const glm::vec3 &velocity() const;
-    void setVelocity(const glm::vec3 &velocity);
+    void setPosition(const glm::vec3 &position) { _position = position; }
 
-    const glm::vec3 &acceleration() const;
-    void setAcceleration(const glm::vec3 &acceleration);
+    const glm::vec3 &velocity() const { return _velocity; }
 
-    MovementMode movementMode() const;
-    void setMovementMode(const MovementMode movementMode);
+    void setVelocity(const glm::vec3 &velocity) { _velocity = velocity; }
 
-    const glm::vec3 &previousAcceleration() const;
+    const glm::vec3 &acceleration() const { return _acceleration; }
+
+    void setAcceleration(const glm::vec3 &acceleration) { _acceleration = acceleration; }
+
+    MovementMode movementMode() const { return _movementMode; }
+
+    void setMovementMode(const MovementMode movementMode) { _movementMode = movementMode; }
+
+    const glm::vec3 &previousAcceleration() const { return _previousAcceleration; }
 
     virtual AlignedBox3D boxCollider() const = 0;
 
     virtual void updatePhysics(const float dT, const Terrain &terrain);
 
 private:
-    BlockType getBlockAtCurrentPosition(const Terrain &terrain) const;
+    BlockType getBlockAtCurrentPosition(const Terrain &terrain) const
+    {
+        const glm::ivec3 blockPosition{glm::floor(_position)};
+        return terrain.getBlockAtGlobal(blockPosition);
+    }
 
     void simulateWithTerrainCollisions(const float dT, const Terrain &terrain);
 
@@ -57,68 +72,6 @@ private:
     glm::vec3 _previousAcceleration;
 };
 
-inline Entity::Entity(const glm::vec3 &position,
-                      const glm::vec3 &velocity,
-                      const glm::vec3 &acceleration,
-                      const MovementMode movementMode)
-    : _position{position}
-    , _velocity{velocity}
-    , _acceleration{acceleration}
-    , _movementMode{movementMode}
-    , _previousAcceleration{0.0f}
-{}
-
-inline const glm::vec3 &Entity::position() const
-{
-    return _position;
-}
-
-inline void Entity::setPosition(const glm::vec3 &position)
-{
-    _position = position;
-}
-
-inline const glm::vec3 &Entity::velocity() const
-{
-    return _velocity;
-}
-
-inline void Entity::setVelocity(const glm::vec3 &velocity)
-{
-    _velocity = velocity;
-}
-
-inline const glm::vec3 &Entity::acceleration() const
-{
-    return _acceleration;
-}
-
-inline void Entity::setAcceleration(const glm::vec3 &acceleration)
-{
-    _acceleration = acceleration;
-}
-
-inline MovementMode Entity::movementMode() const
-{
-    return _movementMode;
-}
-
-inline void Entity::setMovementMode(const MovementMode movementMode)
-{
-    _movementMode = movementMode;
-}
-
-inline const glm::vec3 &Entity::previousAcceleration() const
-{
-    return _previousAcceleration;
-}
-
-inline BlockType Entity::getBlockAtCurrentPosition(const Terrain &terrain) const
-{
-    const glm::ivec3 blockPosition{glm::floor(_position)};
-    return terrain.getBlockAtGlobal(blockPosition);
-}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_ENTITY_H
+#endif // MINECRAFT_ENTITY_H

@@ -1,3 +1,9 @@
+#version 410 core
+
+#include "block_face.glsl"
+#include "block_type.glsl"
+#include "water_wave.glsl"
+
 uniform float u_time;
 uniform mat4 u_viewMatrix;
 uniform mat4 u_viewProjectionMatrix;

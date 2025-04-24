@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_SCENE_H
-#define MINI_MINECRAFT_SCENE_H
+#ifndef MINECRAFT_SCENE_H
+#define MINECRAFT_SCENE_H
 
 #include "player.h"
 #include "pose.h"
@@ -14,13 +14,18 @@ namespace minecraft {
 class Scene
 {
 public:
-    Scene();
+    Scene()
+        : _terrain{}
+        , _player{Pose{glm::vec3{0.0f, 160.0f, 0.0f}}}
+    {}
 
-    Terrain &terrain();
-    Player &player();
+    Terrain &terrain() { return _terrain; }
 
-    std::mutex &terrainMutex();
-    std::mutex &playerMutex();
+    Player &player() { return _player; }
+
+    std::mutex &terrainMutex() { return _terrainMutex; }
+
+    std::mutex &playerMutex() { return _playerMutex; }
 
 private:
     Terrain _terrain;
@@ -30,31 +35,6 @@ private:
     std::mutex _playerMutex;
 };
 
-inline Scene::Scene()
-    : _terrain{}
-    , _player{Pose{glm::vec3{0.0f, 160.0f, 0.0f}}}
-{}
-
-inline Terrain &Scene::terrain()
-{
-    return _terrain;
-}
-
-inline Player &Scene::player()
-{
-    return _player;
-}
-
-inline std::mutex &Scene::terrainMutex()
-{
-    return _terrainMutex;
-}
-
-inline std::mutex &Scene::playerMutex()
-{
-    return _playerMutex;
-}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_SCENE_H
+#endif // MINECRAFT_SCENE_H

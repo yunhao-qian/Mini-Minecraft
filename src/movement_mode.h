@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_MOVEMENT_MODE_H
-#define MINI_MINECRAFT_MOVEMENT_MODE_H
+#ifndef MINECRAFT_MOVEMENT_MODE_H
+#define MINECRAFT_MOVEMENT_MODE_H
 
 namespace minecraft {
 
@@ -12,4 +12,4 @@ enum class MovementMode {
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_MOVEMENT_MODE_H
+#endif // MINECRAFT_MOVEMENT_MODE_H

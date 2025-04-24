@@ -12,7 +12,7 @@ bool AlignedBox3D::sweep(const glm::vec3 &velocity,
 {
     auto minTime{0.0f};
     auto maxTime{hitTime};
-    glm::vec3 firstHitNormal;
+    glm::vec3 firstHitNormal{0.0f};
 
     const auto minDisplacement{other._minPoint - _maxPoint};
     const auto maxDisplacement{other._maxPoint - _minPoint};

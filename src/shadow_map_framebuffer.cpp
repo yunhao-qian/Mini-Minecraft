@@ -6,97 +6,112 @@ namespace minecraft {
 
 void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
 {
-    if (width == _width && height == _height) {
+    if (_width == width && _height == height) {
         return;
     }
-    releaseResources();
     _width = width;
     _height = height;
+    _depthTexture.reset();
+    _depthRenderbuffer.reset();
 
-    _context->glGenFramebuffers(1, &_fbo);
-    _context->debugError();
-    _context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-    _context->debugError();
+    const auto &context{OpenGLContext::instance()};
 
-    _context->glGenTextures(1, &_depthTexture);
-    _context->debugError();
-    _context->glBindTexture(GL_TEXTURE_2D_ARRAY, _depthTexture);
-    _context->debugError();
-    _context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
-                           0,
-                           GL_RG32F,
-                           width,
-                           height,
-                           ShadowMapCamera::CascadeCount,
-                           0,
-                           GL_RG,
-                           GL_FLOAT,
-                           nullptr);
-    _context->debugError();
+    // Create the FBO if it does not exist yet.
+    if (!_fbo) {
+        GLuint fbo{0u};
+        context->glGenFramebuffers(1, &fbo);
+        context->checkError();
+        _fbo = OpenGLObject{
+            fbo,
+            [](OpenGLContext *const context, const GLuint fbo) {
+                context->glDeleteFramebuffers(1, &fbo);
+            },
+        };
+    }
+    context->glBindFramebuffer(GL_FRAMEBUFFER, _fbo.get());
+    context->checkError();
 
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    _context->debugError();
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    _context->debugError();
+    {
+        GLuint texture{0u};
+        context->glGenTextures(1, &texture);
+        context->checkError();
+        _depthTexture = OpenGLObject{
+            texture,
+            [](OpenGLContext *const context, const GLuint texture) {
+                context->glDeleteTextures(1, &texture);
+            },
+        };
+    }
+    context->glBindTexture(GL_TEXTURE_2D_ARRAY, _depthTexture.get());
+    context->checkError();
+    context->glTexImage3D(GL_TEXTURE_2D_ARRAY,
+                          0,
+                          GL_RG32F,
+                          width,
+                          height,
+                          ShadowMapCamera::CascadeCount,
+                          0,
+                          GL_RG,
+                          GL_FLOAT,
+                          nullptr);
+    context->checkError();
 
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    _context->debugError();
-    _context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    _context->debugError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    context->checkError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    context->checkError();
+
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    context->checkError();
+    context->glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    context->checkError();
 
     setTextureLayer(0);
 
-    _context->glGenRenderbuffers(1, &_depthRenderbuffer);
-    _context->debugError();
-    _context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer);
-    _context->debugError();
-    _context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-    _context->debugError();
-    _context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                        GL_DEPTH_ATTACHMENT,
-                                        GL_RENDERBUFFER,
-                                        _depthRenderbuffer);
-    _context->debugError();
+    {
+        GLuint renderbuffer{0u};
+        context->glGenRenderbuffers(1, &renderbuffer);
+        context->checkError();
+        _depthRenderbuffer = OpenGLObject{
+            renderbuffer,
+            [](OpenGLContext *const context, const GLuint renderbuffer) {
+                context->glDeleteRenderbuffers(1, &renderbuffer);
+            },
+        };
+    }
+    context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer.get());
+    context->checkError();
+    context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    context->checkError();
+    context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                       GL_DEPTH_ATTACHMENT,
+                                       GL_RENDERBUFFER,
+                                       _depthRenderbuffer.get());
+    context->checkError();
 
     {
-        const auto status{_context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
-        _context->debugError();
+        const auto status{context->glCheckFramebufferStatus(GL_FRAMEBUFFER)};
+        context->checkError();
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             qFatal() << "Failed to initialize framebuffer";
         }
     }
 }
 
-void ShadowMapFramebuffer::releaseResources()
-{
-    _width = 0;
-    _height = 0;
-
-    _context->glDeleteFramebuffers(1, &_fbo);
-    _context->debugError();
-    _fbo = 0;
-
-    _context->glDeleteTextures(1, &_depthTexture);
-    _context->debugError();
-    _depthTexture = 0;
-
-    _context->glDeleteRenderbuffers(1, &_depthRenderbuffer);
-    _context->debugError();
-    _depthRenderbuffer = 0;
-}
-
 void ShadowMapFramebuffer::setTextureLayer(const int cascadeIndex) const
 {
-    _context->glFramebufferTextureLayer(GL_FRAMEBUFFER,
-                                        GL_COLOR_ATTACHMENT0,
-                                        _depthTexture,
-                                        0,
-                                        cascadeIndex);
-    _context->debugError();
+    const auto &context{OpenGLContext::instance()};
+
+    context->glFramebufferTextureLayer(GL_FRAMEBUFFER,
+                                       GL_COLOR_ATTACHMENT0,
+                                       _depthTexture.get(),
+                                       0,
+                                       cascadeIndex);
+    context->checkError();
     {
         const GLenum drawBuffers[1]{GL_COLOR_ATTACHMENT0};
-        _context->glDrawBuffers(1, drawBuffers);
-        _context->debugError();
+        context->glDrawBuffers(1, drawBuffers);
+        context->checkError();
     }
 }
 

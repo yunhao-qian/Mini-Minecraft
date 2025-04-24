@@ -75,7 +75,7 @@ TerrainStreamer::UpdateResult TerrainStreamer::update(const glm::vec3 &cameraPos
     for (const auto &[originXZ, _] : chunksWithDistances) {
         QThreadPool::globalInstance()->start(new TerrainChunkGenerationTask{
             this,
-            std::make_unique<TerrainChunk>(_context, originXZ),
+            std::make_unique<TerrainChunk>(originXZ),
         });
     }
 

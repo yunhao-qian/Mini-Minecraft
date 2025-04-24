@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_DIRECTION_H
-#define MINI_MINECRAFT_DIRECTION_H
+#ifndef MINECRAFT_DIRECTION_H
+#define MINECRAFT_DIRECTION_H
 
 namespace minecraft {
 
@@ -14,4 +14,4 @@ enum class Direction {
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_DIRECTION_H
+#endif // MINECRAFT_DIRECTION_H

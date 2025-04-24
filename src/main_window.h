@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_MAIN_WINDOW_H
-#define MINI_MINECRAFT_MAIN_WINDOW_H
+#ifndef MINECRAFT_MAIN_WINDOW_H
+#define MINECRAFT_MAIN_WINDOW_H
 
 #include "opengl_widget.h"
 
@@ -20,4 +20,4 @@ private:
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_MAIN_WINDOW_H
+#endif // MINECRAFT_MAIN_WINDOW_H

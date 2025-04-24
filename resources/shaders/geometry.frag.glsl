@@ -1,3 +1,8 @@
+#version 410 core
+
+#include "block_type.glsl"
+#include "water_wave.glsl"
+
 uniform float u_time;
 uniform mat4 u_viewMatrix;
 uniform int u_isAboveWaterOnly;

@@ -1,9 +1,10 @@
-#ifndef MINI_MINECRAFT_OPENGL_WIDGET_H
-#define MINI_MINECRAFT_OPENGL_WIDGET_H
+#ifndef MINECRAFT_OPENGL_WIDGET_H
+#define MINECRAFT_OPENGL_WIDGET_H
 
 #include "array_texture_2d.h"
-#include "framebuffer.h"
+#include "geometry_framebuffer.h"
 #include "opengl_context.h"
+#include "opengl_object.h"
 #include "player_controller.h"
 #include "player_info_display_data.h"
 #include "scene.h"
@@ -28,7 +29,7 @@ public:
     ~OpenGLWidget() override;
 
 signals:
-    void playerInfoChanged(const PlayerInfoDisplayData &data);
+    void playerInfoChanged(const PlayerInfoDisplayData &displayData);
 
 protected:
     void initializeGL() override;
@@ -61,14 +62,14 @@ private:
     ArrayTexture2D _colorTexture;
     ArrayTexture2D _normalTexture;
     ShadowMapFramebuffer _shadowMapFramebuffer;
-    Framebuffer _opaqueGeometryFramebuffer;
-    Framebuffer _translucentGeometryFramebuffer;
-    Framebuffer _reflectionGeometryFramebuffer;
-    Framebuffer _refractionGeometryFramebuffer;
+    GeometryFramebuffer _opaqueGeometryFramebuffer;
+    GeometryFramebuffer _translucentGeometryFramebuffer;
+    GeometryFramebuffer _reflectionGeometryFramebuffer;
+    GeometryFramebuffer _refractionGeometryFramebuffer;
 
-    GLuint _quadVAO;
+    OpenGLObject _quadVAO;
 };
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_OPENGL_WIDGET_H
+#endif // MINECRAFT_OPENGL_WIDGET_H

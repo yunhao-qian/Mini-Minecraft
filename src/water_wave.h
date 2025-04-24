@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_WATER_WAVE_H
-#define MINI_MINECRAFT_WATER_WAVE_H
+#ifndef MINECRAFT_WATER_WAVE_H
+#define MINECRAFT_WATER_WAVE_H
 
 #include <glm/glm.hpp>
 
@@ -11,4 +11,4 @@ float getAverageWaterWaveOffset();
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_WATER_WAVE_H
+#endif // MINECRAFT_WATER_WAVE_H

@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_BLOCK_TYPE_H
-#define MINI_MINECRAFT_BLOCK_TYPE_H
+#ifndef MINECRAFT_BLOCK_TYPE_H
+#define MINECRAFT_BLOCK_TYPE_H
 
 #include <cstdint>
 
@@ -18,4 +18,4 @@ enum class BlockType : std::uint8_t {
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_BLOCK_TYPE_H
+#endif // MINECRAFT_BLOCK_TYPE_H

@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_TERRAIN_H
-#define MINI_MINECRAFT_TERRAIN_H
+#ifndef MINECRAFT_TERRAIN_H
+#define MINECRAFT_TERRAIN_H
 
 #include "block_type.h"
 #include "ivec2_hash.h"
@@ -15,85 +15,68 @@ namespace minecraft {
 class Terrain
 {
 public:
-    const TerrainChunk *getChunk(const glm::ivec2 xz) const;
-    TerrainChunk *getChunk(const glm::ivec2 xz);
+    const TerrainChunk *getChunk(const glm::ivec2 xz) const { return getTrunkImpl(*this, xz); }
+
+    TerrainChunk *getChunk(const glm::ivec2 xz) { return getTrunkImpl(*this, xz); }
+
     void setChunk(std::unique_ptr<TerrainChunk> chunk);
 
-    BlockType getBlockAtGlobal(const glm::ivec3 &position) const;
-    void setBlockAtGlobal(const glm::ivec3 &position, const BlockType block);
+    BlockType getBlockAtGlobal(const glm::ivec3 &position) const
+    {
+        if (position.y < 0 || position.y >= TerrainChunk::SizeY) {
+            return BlockType::Air;
+        }
+        const auto chunk{getChunk(glm::ivec2{position.x, position.z})};
+        if (chunk == nullptr) {
+            return BlockType::Air;
+        }
+        return chunk->getBlockAtLocal(glm::ivec3{
+            position.x - chunk->originXZ()[0],
+            position.y,
+            position.z - chunk->originXZ()[1],
+        });
+    }
 
-    template<typename Function>
-    void forEachChunk(Function function);
+    void setBlockAtGlobal(const glm::ivec3 &position, const BlockType block)
+    {
+        if (position.y < 0 || position.y >= TerrainChunk::SizeY) {
+            return;
+        }
+        const auto chunk{getChunk(glm::ivec2{position.x, position.z})};
+        if (chunk == nullptr) {
+            return;
+        }
+        chunk->setBlockAtLocal(
+            glm::ivec3{
+                position.x - chunk->originXZ()[0],
+                position.y,
+                position.z - chunk->originXZ()[1],
+            },
+            block);
+    }
+
+    template<typename Callable>
+    void forEachChunk(Callable callable)
+    {
+        for (const auto &[_, chunk] : _chunks) {
+            callable(chunk.get());
+        }
+    }
 
 private:
     template<typename Self>
-    static auto getChunk(Self &self, const glm::ivec2 xz);
+    static auto getTrunkImpl(Self &self, const glm::ivec2 xz)
+    {
+        const auto it{self._chunks.find(TerrainChunk::alignToChunkOrigin(xz))};
+        if (it == self._chunks.end()) {
+            return static_cast<decltype(it->second.get())>(nullptr);
+        }
+        return it->second.get();
+    }
 
     std::unordered_map<glm::ivec2, std::unique_ptr<TerrainChunk>, IVec2Hash> _chunks;
 };
 
-template<typename Self>
-auto Terrain::getChunk(Self &self, const glm::ivec2 xz)
-{
-    const auto it{self._chunks.find(TerrainChunk::alignToChunkOrigin(xz))};
-    if (it == self._chunks.end()) {
-        return static_cast<decltype(it->second.get())>(nullptr);
-    }
-    return it->second.get();
-}
-
-inline const TerrainChunk *Terrain::getChunk(const glm::ivec2 xz) const
-{
-    return getChunk(*this, xz);
-}
-
-inline TerrainChunk *Terrain::getChunk(const glm::ivec2 xz)
-{
-    return getChunk(*this, xz);
-}
-
-inline BlockType Terrain::getBlockAtGlobal(const glm::ivec3 &position) const
-{
-    if (position.y < 0 || position.y >= TerrainChunk::SizeY) {
-        return BlockType::Air;
-    }
-    const auto chunk{getChunk(glm::ivec2{position.x, position.z})};
-    if (chunk == nullptr) {
-        return BlockType::Air;
-    }
-    return chunk->getBlockAtLocal(glm::ivec3{
-        position.x - chunk->originXZ()[0],
-        position.y,
-        position.z - chunk->originXZ()[1],
-    });
-}
-
-inline void Terrain::setBlockAtGlobal(const glm::ivec3 &position, const BlockType block)
-{
-    if (position.y < 0 || position.y >= TerrainChunk::SizeY) {
-        return;
-    }
-    const auto chunk{getChunk(glm::ivec2{position.x, position.z})};
-    if (chunk == nullptr) {
-        return;
-    }
-    chunk->setBlockAtLocal(
-        glm::ivec3{
-            position.x - chunk->originXZ()[0],
-            position.y,
-            position.z - chunk->originXZ()[1],
-        },
-        block);
-}
-
-template<typename Function>
-void Terrain::forEachChunk(Function function)
-{
-    for (const auto &[_, chunk] : _chunks) {
-        function(chunk.get());
-    }
-}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_TERRAIN_H
+#endif // MINECRAFT_TERRAIN_H

@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_PLAYER_INFO_WINDOW_H
-#define MINI_MINECRAFT_PLAYER_INFO_WINDOW_H
+#ifndef MINECRAFT_PLAYER_INFO_WINDOW_H
+#define MINECRAFT_PLAYER_INFO_WINDOW_H
 
 #include "player_info_display_data.h"
 
@@ -16,7 +16,7 @@ public:
     PlayerInfoWindow(QWidget *const parent = nullptr);
 
 public slots:
-    void setPlayerInfo(const PlayerInfoDisplayData &data);
+    void setPlayerInfo(const PlayerInfoDisplayData &displayData);
 
 signals:
     void visibleChanged(const bool visible);
@@ -36,4 +36,4 @@ private:
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_PLAYER_INFO_WINDOW_H
+#endif // MINECRAFT_PLAYER_INFO_WINDOW_H

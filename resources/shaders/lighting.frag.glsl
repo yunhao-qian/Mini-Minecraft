@@ -1,3 +1,7 @@
+#version 410 core
+
+#include "block_type.glsl"
+
 const int ShadowMapCascadeCount = 4;
 
 uniform mat4 u_viewMatrix;

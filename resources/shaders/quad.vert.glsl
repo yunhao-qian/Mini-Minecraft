@@ -1,3 +1,5 @@
+#version 410 core
+
 out vec2 v_textureCoords;
 
 void main()

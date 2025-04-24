@@ -1,3 +1,7 @@
+#version 410 core
+
+#include "block_face.glsl"
+
 uniform mat4 u_shadowViewMatrix;
 uniform mat4 u_shadowViewProjectionMatrix;
 

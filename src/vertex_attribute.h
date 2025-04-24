@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_VERTEX_ATTRIBUTE_H
-#define MINI_MINECRAFT_VERTEX_ATTRIBUTE_H
+#ifndef MINECRAFT_VERTEX_ATTRIBUTE_H
+#define MINECRAFT_VERTEX_ATTRIBUTE_H
 
 #include <glm/glm.hpp>
 
@@ -45,4 +45,4 @@ struct VertexAttributeTrait<BlockFace>
 
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_VERTEX_ATTRIBUTE_H
+#endif // MINECRAFT_VERTEX_ATTRIBUTE_H

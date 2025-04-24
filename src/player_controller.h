@@ -1,5 +1,5 @@
-#ifndef MINI_MINECRAFT_PLAYER_CONTROLLER_H
-#define MINI_MINECRAFT_PLAYER_CONTROLLER_H
+#ifndef MINECRAFT_PLAYER_CONTROLLER_H
+#define MINECRAFT_PLAYER_CONTROLLER_H
 
 #include "player.h"
 #include "terrain.h"
@@ -14,7 +14,9 @@ namespace minecraft {
 class PlayerController
 {
 public:
-    PlayerController(Player *const player);
+    PlayerController(Player *const player)
+        : _player{player}
+    {}
 
     void keyPressEvent(const QKeyEvent *const event) const;
 
@@ -24,10 +26,6 @@ private:
     Player *_player;
 };
 
-inline PlayerController::PlayerController(Player *const player)
-    : _player{player}
-{}
-
 } // namespace minecraft
 
-#endif // MINI_MINECRAFT_PLAYER_CONTROLLER_H
+#endif // MINECRAFT_PLAYER_CONTROLLER_H
