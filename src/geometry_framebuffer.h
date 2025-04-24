@@ -29,7 +29,7 @@ public:
 
     int height() const { return _height; }
 
-    void resizeViewport(const int width, const int height);
+    void resize(const int width, const int height);
 
     GLuint depthTexture() const { return _depthTexture.get(); }
 

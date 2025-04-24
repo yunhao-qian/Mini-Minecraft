@@ -4,7 +4,7 @@
 
 namespace minecraft {
 
-void ShadowMapFramebuffer::resizeViewport(const int width, const int height)
+void ShadowMapFramebuffer::resize(const int width, const int height)
 {
     if (_width == width && _height == height) {
         return;

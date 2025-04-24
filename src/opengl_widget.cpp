@@ -77,7 +77,7 @@ void OpenGLWidget::initializeGL()
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
 
     // The shadow map framebuffer has a fixed size and does not resize with the viewport.
-    _shadowMapFramebuffer.resizeViewport(4096, 4096);
+    _shadowMapFramebuffer.resize(4096, 4096);
 
     glActiveTexture(GL_TEXTURE0);
     checkError();
@@ -336,7 +336,7 @@ void OpenGLWidget::resizeGL([[maybe_unused]] const int width, [[maybe_unused]] c
              &_reflectionGeometryFramebuffer,
              &_refractionGeometryFramebuffer,
          }) {
-        framebuffer->resizeViewport(deviceSize.width(), deviceSize.height());
+        framebuffer->resize(deviceSize.width(), deviceSize.height());
     }
     const std::lock_guard lock{_scene.playerMutex()};
     _scene.player().resizeCameraViewport(deviceSize.width(), deviceSize.height());

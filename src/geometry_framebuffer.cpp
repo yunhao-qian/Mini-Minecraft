@@ -1,10 +1,8 @@
 #include "geometry_framebuffer.h"
 
-#include <initializer_list>
-
 namespace minecraft {
 
-void GeometryFramebuffer::resizeViewport(const int width, const int height)
+void GeometryFramebuffer::resize(const int width, const int height)
 {
     if (_width == width && _height == height) {
         return;
