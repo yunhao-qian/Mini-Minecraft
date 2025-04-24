@@ -19,7 +19,8 @@ float getWaterWaveOffset(vec2 position, float time)
     for (int i = 0; i < WaterWaveCount; ++i) {
         float phase = dot(WaterWaveAngularWaveVectors[i], position) * WaterWaveAngularFrequencies[i]
                       + time * WaterWavePhaseOffsets[i];
-        offset += 2.0 * WaterWaveAmplitudes[i] * pow((sin(phase) + 1.0) * 0.5, WaterWaveExponents[i]);
+        offset += 2.0 * WaterWaveAmplitudes[i]
+                  * pow((sin(phase) + 1.0) * 0.5, WaterWaveExponents[i]);
     }
     return offset;
 }

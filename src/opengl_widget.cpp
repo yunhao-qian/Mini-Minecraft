@@ -140,13 +140,11 @@ void OpenGLWidget::paintGL()
 
     glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
     glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
-    glm::vec2 shadowMapDepthBlurScales[ShadowMapCamera::CascadeCount];
     for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
         const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
         const auto &shadowProjectionMatrix{shadowMapCamera.projectionMatrix(cascadeIndex)};
         shadowViewMatrices[cascadeIndex] = shadowViewMatrix;
         shadowViewProjectionMatrices[cascadeIndex] = shadowProjectionMatrix * shadowViewMatrix;
-        shadowMapDepthBlurScales[cascadeIndex] = shadowMapCamera.getDepthBlurScale(cascadeIndex);
     }
 
     {
@@ -286,9 +284,6 @@ void OpenGLWidget::paintGL()
     _lightingProgram.setUniforms("u_shadowViewProjectionMatrices",
                                  ShadowMapCamera::CascadeCount,
                                  shadowViewProjectionMatrices);
-    _lightingProgram.setUniforms("u_shadowMapDepthBlurScales",
-                                 ShadowMapCamera::CascadeCount,
-                                 shadowMapDepthBlurScales);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     checkError();
