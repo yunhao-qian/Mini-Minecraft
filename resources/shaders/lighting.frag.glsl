@@ -1,21 +1,8 @@
 #version 410 core
 
 #include "block_type.glsl"
+#include "uniform_buffer_data.glsl"
 
-const int ShadowMapCascadeCount = 4;
-
-uniform mat4 u_viewMatrix;
-uniform mat4 u_projectionMatrixInverse;
-uniform mat4 u_reflectionProjectionMatrix;
-uniform mat4 u_originalToReflectionViewMatrix;
-uniform mat4 u_reflectionToOriginalViewMatrix;
-uniform mat4 u_refractionProjectionMatrix;
-uniform mat4 u_originalToRefractionViewMatrix;
-uniform mat4 u_refractionToOriginalViewMatrix;
-uniform float u_cameraNear;
-uniform float u_cameraFar;
-uniform mat4 u_shadowViewMatrices[ShadowMapCascadeCount];
-uniform mat4 u_shadowViewProjectionMatrices[ShadowMapCascadeCount];
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
@@ -91,9 +78,9 @@ float getNonOccludedProbability(vec3 viewSpacePosition)
 
     // These transformations skip the world space, transforming directly from the camera's view
     // space to the shadow map's view and clip spaces.
-    vec4 shadowViewSpacePosition = u_shadowViewMatrices[cascadeIndex]
+    vec4 shadowViewSpacePosition = u_mainToShadowViewMatrices[cascadeIndex]
                                    * vec4(viewSpacePosition, 1.0);
-    vec4 shadowClipSpacePosition = u_shadowViewProjectionMatrices[cascadeIndex]
+    vec4 shadowClipSpacePosition = u_mainToShadowViewProjectionMatrices[cascadeIndex]
                                    * vec4(viewSpacePosition, 1.0);
     shadowClipSpacePosition /= shadowClipSpacePosition.w;
     vec2 shadowTextureCoords = shadowClipSpacePosition.xy * 0.5 + 0.5;
@@ -299,7 +286,7 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
             surfaceColor = vec3(0.0);
         }
         vec3 worldSpaceDirection = normalize(
-            (inverse(u_viewMatrix) * vec4(viewSpaceDirection, 0.0)).xyz);
+            (u_viewMatrixInverse * vec4(viewSpaceDirection, 0.0)).xyz);
         const float EarthRadius = 6378e3;
         const float AtmosphereRadius = EarthRadius + 10e3;
         float cosGamma = dot(worldSpaceDirection, vec3(0.0, 1.0, 0.0));
@@ -344,7 +331,7 @@ void main()
 {
     const vec3 WorldSpaceSunDirection = normalize(vec3(1.5, 1.0, 2.0));
 
-    vec3 viewSpaceSunDirection = (u_viewMatrix * vec4(WorldSpaceSunDirection, 0.0)).xyz;
+    vec3 viewSpaceSunDirection = (u_viewMatrices[0] * vec4(WorldSpaceSunDirection, 0.0)).xyz;
 
     float opaqueDepth = texture(u_opaqueDepthTexture, v_textureCoords).r;
     float translucentDepth = texture(u_translucentDepthTexture, v_textureCoords).r;
@@ -409,16 +396,16 @@ void main()
         vec3 reflectedColor = vec3(0.0);
         {
             vec3 reflectionViewSpaceWaterPosition
-                = (u_originalToReflectionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
+                = (u_mainToReflectionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
             vec3 reflectionViewSpaceReflectedDirection
-                = (u_originalToReflectionViewMatrix * vec4(viewSpaceReflectedDirection, 0.0)).xyz;
+                = (u_mainToReflectionViewMatrix * vec4(viewSpaceReflectedDirection, 0.0)).xyz;
             RayMarchResult result = rayMarch(reflectionViewSpaceWaterPosition,
                                              reflectionViewSpaceReflectedDirection,
                                              u_reflectionProjectionMatrix,
                                              u_reflectionDepthTexture);
             if (result.isHit) {
                 vec3 reflectionViewSpaceSunDirection
-                    = (u_originalToReflectionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
+                    = (u_mainToReflectionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
                 reflectedColor
                     = getOpaqueFragmentColorWithMediumEffects(result.depth,
                                                               result.viewSpaceDirection,
@@ -427,7 +414,7 @@ void main()
                                                               reflectionViewSpaceSunDirection,
                                                               u_reflectionAlbedoTexture,
                                                               u_reflectionNormalTexture,
-                                                              u_reflectionToOriginalViewMatrix);
+                                                              u_reflectionToMainViewMatrix);
             }
         }
 
@@ -435,16 +422,16 @@ void main()
         if (!isFullReflection) {
             // Not full reflection
             vec3 refractionViewSpaceWaterPosition
-                = (u_originalToRefractionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
+                = (u_mainToRefractionViewMatrix * vec4(viewSpaceWaterPosition, 1.0)).xyz;
             vec3 refractionViewSpaceRefractedDirection
-                = (u_originalToRefractionViewMatrix * vec4(viewSpaceRefractedDirection, 0.0)).xyz;
+                = (u_mainToRefractionViewMatrix * vec4(viewSpaceRefractedDirection, 0.0)).xyz;
             RayMarchResult result = rayMarch(refractionViewSpaceWaterPosition,
                                              refractionViewSpaceRefractedDirection,
                                              u_refractionProjectionMatrix,
                                              u_refractionDepthTexture);
             if (result.isHit) {
                 vec3 refractionViewSpaceSunDirection
-                    = (u_originalToRefractionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
+                    = (u_mainToRefractionViewMatrix * vec4(viewSpaceSunDirection, 0.0)).xyz;
                 refractedColor
                     = getOpaqueFragmentColorWithMediumEffects(result.depth,
                                                               result.viewSpaceDirection,
@@ -453,7 +440,7 @@ void main()
                                                               refractionViewSpaceSunDirection,
                                                               u_refractionAlbedoTexture,
                                                               u_refractionNormalTexture,
-                                                              u_refractionToOriginalViewMatrix);
+                                                              u_refractionToMainViewMatrix);
             }
         }
 

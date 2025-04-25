@@ -84,6 +84,21 @@ void ShaderProgram::create(const QString &vertexShaderFileName,
     }
 }
 
+void ShaderProgram::bindUniformBlock(const QString &name, const GLuint bindingPoint) const
+{
+    const auto context{OpenGLContext::instance()};
+
+    const auto nameBytes{name.toUtf8()};
+    const auto blockIndex{context->glGetUniformBlockIndex(_program.get(), nameBytes.data())};
+    context->checkError();
+    if (blockIndex == GL_INVALID_INDEX) {
+        qFatal() << "Failed to get index for uniform block" << name;
+        return;
+    }
+    context->glUniformBlockBinding(_program.get(), blockIndex, bindingPoint);
+    context->checkError();
+}
+
 void ShaderProgram::compileShader(const GLuint shader, const QString &fileName) const
 {
     // The source code are in multiple strings, starting with the version string, followed by one

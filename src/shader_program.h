@@ -74,6 +74,8 @@ public:
         context->checkError();
     }
 
+    void bindUniformBlock(const QString &name, const GLuint bindingPoint) const;
+
 private:
     template<typename T>
     static constexpr auto DependentFalse{false};

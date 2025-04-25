@@ -1,9 +1,9 @@
 #version 410 core
 
 #include "block_face.glsl"
+#include "uniform_buffer_data.glsl"
 
-uniform mat4 u_shadowViewMatrix;
-uniform mat4 u_shadowViewProjectionMatrix;
+uniform int u_cascadeIndex;
 
 layout(location = 0) in ivec3 a_blockPosition;
 layout(location = 1) in int a_faceIndex;
@@ -21,8 +21,11 @@ void main()
                                         + textureCoords.y * faceBitangent),
                                    1.0);
 
-    v_shadowViewSpaceDepth = -(u_shadowViewMatrix * worldSpacePosition).z;
-    gl_Position = u_shadowViewProjectionMatrix * worldSpacePosition;
+    mat4 shadowViewMatrix = u_shadowViewMatrices[u_cascadeIndex];
+    v_shadowViewSpaceDepth = -(shadowViewMatrix * worldSpacePosition).z;
+
+    mat4 shadowViewProjectionMatrix = u_shadowViewProjectionMatrices[u_cascadeIndex];
+    gl_Position = shadowViewProjectionMatrix * worldSpacePosition;
 
     // Clamping the depth ensures that geometry outside the shadow frustum can still cast shadows,
     // even if their actual depth values fall outside the valid clip space range. This may produce

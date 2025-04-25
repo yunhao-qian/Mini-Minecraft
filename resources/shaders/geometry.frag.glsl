@@ -1,10 +1,10 @@
 #version 410 core
 
 #include "block_type.glsl"
+#include "uniform_buffer_data.glsl"
 #include "water_wave.glsl"
 
-uniform float u_time;
-uniform mat4 u_viewMatrix;
+uniform int u_cameraIndex;
 uniform int u_isAboveWaterOnly;
 uniform int u_isUnderWaterOnly;
 uniform sampler2DArray u_colorTexture;
@@ -33,7 +33,8 @@ void main()
         discard;
     }
 
-    f_depth = length((u_viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz);
+    mat4 viewMatrix = u_viewMatrices[u_cameraIndex];
+    f_depth = length((viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz);
 
     vec3 textureCoords = vec3(v_textureCoords, float(v_textureIndex));
 
@@ -46,8 +47,8 @@ void main()
         tangentSpaceNormal.x = -tangentSpaceNormal.x;
         f_normal.xyz = normalize(viewSpaceTBNMatrix * tangentSpaceNormal);
     } else if (v_blockType == BlockTypeWater) {
-        f_normal.xyz
-            = (u_viewMatrix * vec4(getWaterWaveNormal(v_worldSpacePosition.xz, u_time), 0.0)).xyz;
+        f_normal.xyz = (viewMatrix * vec4(getWaterWaveNormal(v_worldSpacePosition.xz, u_time), 0.0))
+                           .xyz;
     } else {
         f_normal.xyz = v_viewSpaceNormal;
     }

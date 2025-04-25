@@ -44,6 +44,7 @@ set(PROJECT_SOURCES
     src/camera.cpp
     src/camera_controls_window.h
     src/camera_controls_window.cpp
+    src/constants.h
     src/direction.h
     src/entity.h
     src/entity.cpp
@@ -81,6 +82,7 @@ set(PROJECT_SOURCES
     src/terrain_chunk_generation_task.cpp
     src/terrain_streamer.h
     src/terrain_streamer.cpp
+    src/uniform_buffer_data.h
     src/vertex_attribute.h
     src/water_wave.h
     src/water_wave.cpp
@@ -98,6 +100,7 @@ foreach(SHADER_SOURCE
     quad.vert.glsl
     shadow_depth.frag.glsl
     shadow_depth.vert.glsl
+    uniform_buffer_data.glsl
     water_wave.glsl
 )
     set(SHADER_SOURCE_FULL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/${SHADER_SOURCE}")

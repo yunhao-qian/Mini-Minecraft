@@ -2,11 +2,10 @@
 
 #include "block_face.glsl"
 #include "block_type.glsl"
+#include "uniform_buffer_data.glsl"
 #include "water_wave.glsl"
 
-uniform float u_time;
-uniform mat4 u_viewMatrix;
-uniform mat4 u_viewProjectionMatrix;
+uniform int u_cameraIndex;
 
 layout(location = 0) in ivec3 a_blockPosition;
 layout(location = 1) in int a_faceIndex;
@@ -46,7 +45,8 @@ void main()
         v_worldSpacePosition.y += waterWaveOffset;
     }
 
-    gl_Position = u_viewProjectionMatrix * vec4(v_worldSpacePosition, 1.0);
+    mat4 viewProjectionMatrix = u_viewProjectionMatrices[u_cameraIndex];
+    gl_Position = viewProjectionMatrix * vec4(v_worldSpacePosition, 1.0);
 
     v_textureIndex = a_textureIndex;
     v_textureCoords = vec2(textureCoords);
@@ -54,9 +54,10 @@ void main()
         v_textureCoords += randomOffset(4.0);
     }
 
-    v_viewSpaceTangent = (u_viewMatrix * vec4(faceTangent, 0.0)).xyz;
-    v_viewSpaceBitangent = (u_viewMatrix * vec4(faceBitangent, 0.0)).xyz;
-    v_viewSpaceNormal = (u_viewMatrix * vec4(FaceNormals[a_faceIndex], 0.0)).xyz;
+    mat4 viewMatrix = u_viewMatrices[u_cameraIndex];
+    v_viewSpaceTangent = (viewMatrix * vec4(faceTangent, 0.0)).xyz;
+    v_viewSpaceBitangent = (viewMatrix * vec4(faceBitangent, 0.0)).xyz;
+    v_viewSpaceNormal = (viewMatrix * vec4(FaceNormals[a_faceIndex], 0.0)).xyz;
 
     v_blockType = a_blockType;
     v_mediumType = a_mediumType;

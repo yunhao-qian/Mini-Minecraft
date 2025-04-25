@@ -1,6 +1,7 @@
 #include "opengl_widget.h"
 
 #include "shadow_map_camera.h"
+#include "uniform_buffer_data.h"
 #include "water_wave.h"
 
 #include <glm/glm.hpp>
@@ -26,6 +27,7 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _shadowDepthProgram{}
     , _geometryProgram{}
     , _lightingProgram{}
+    , _ubo{}
     , _colorTexture{}
     , _normalTexture{}
     , _shadowMapFramebuffer{}
@@ -72,6 +74,36 @@ void OpenGLWidget::initializeGL()
                                ":/shaders/shadow_depth.frag.glsl");
     _geometryProgram.create(":/shaders/geometry.vert.glsl", ":/shaders/geometry.frag.glsl");
     _lightingProgram.create(":/shaders/quad.vert.glsl", ":/shaders/lighting.frag.glsl");
+
+    // Generate and bind the uniform buffer object. As it is globally unique, we only need to do it
+    // once.
+    {
+        GLuint ubo{0u};
+        glGenBuffers(1, &ubo);
+        checkError();
+        _ubo = OpenGLObject{
+            ubo,
+            [](OpenGLContext *const context, const GLuint ubo) {
+                context->glDeleteBuffers(1, &ubo);
+            },
+        };
+    }
+    glBindBuffer(GL_UNIFORM_BUFFER, _ubo.get());
+    checkError();
+    glBufferData(GL_UNIFORM_BUFFER,
+                 static_cast<GLsizeiptr>(sizeof(UniformBufferData)),
+                 nullptr,
+                 GL_STREAM_DRAW);
+    checkError();
+    for (const auto program : {
+             &_shadowDepthProgram,
+             &_geometryProgram,
+             &_lightingProgram,
+         }) {
+        program->bindUniformBlock("UniformBufferData", 0);
+    }
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, _ubo.get());
+    checkError();
 
     _colorTexture.generate(":/textures/minecraft_textures_all.png", 16, 16);
     _normalTexture.generate(":/textures/minecraft_normals_all.png", 16, 16);
@@ -138,13 +170,48 @@ void OpenGLWidget::paintGL()
     const auto reflectionCamera{camera->createReflectionCamera(waterElevation)};
     const auto refractionCamera{camera->createRefractionCamera(waterElevation, 1.1f)};
 
-    glm::mat4 shadowViewMatrices[ShadowMapCamera::CascadeCount];
-    glm::mat4 shadowViewProjectionMatrices[ShadowMapCamera::CascadeCount];
-    for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-        const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
-        const auto &shadowProjectionMatrix{shadowMapCamera.projectionMatrix(cascadeIndex)};
-        shadowViewMatrices[cascadeIndex] = shadowViewMatrix;
-        shadowViewProjectionMatrices[cascadeIndex] = shadowProjectionMatrix * shadowViewMatrix;
+    // Update the UBO data.
+    {
+        const auto viewMatrix{camera->viewMatrix()};
+        const auto viewMatrixInverse{glm::inverse(viewMatrix)};
+        UniformBufferData uboData{
+            .time = time,
+            .cameraNear = camera->near(),
+            .cameraFar = camera->far(),
+            .viewMatrices{viewMatrix, reflectionCamera.viewMatrix(), refractionCamera.viewMatrix()},
+            .viewProjectionMatrices{
+                camera->viewProjectionMatrix(),
+                reflectionCamera.viewProjectionMatrix(),
+                refractionCamera.viewProjectionMatrix(),
+            },
+            .shadowViewMatrices{},
+            .shadowViewProjectionMatrices{},
+            .mainToShadowViewMatrices{},
+            .mainToShadowViewProjectionMatrices{},
+            .viewMatrixInverse{viewMatrixInverse},
+            .projectionMatrixInverse{glm::inverse(camera->projectionMatrix())},
+            .reflectionProjectionMatrix{reflectionCamera.projectionMatrix()},
+            .mainToReflectionViewMatrix{reflectionCamera.viewMatrix() * viewMatrixInverse},
+            .reflectionToMainViewMatrix{viewMatrix * glm::inverse(reflectionCamera.viewMatrix())},
+            .refractionProjectionMatrix{refractionCamera.projectionMatrix()},
+            .mainToRefractionViewMatrix{refractionCamera.viewMatrix() * viewMatrixInverse},
+            .refractionToMainViewMatrix{viewMatrix * glm::inverse(refractionCamera.viewMatrix())},
+        };
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+            const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
+            const auto shadowViewProjectionMatrix{
+                shadowMapCamera.projectionMatrix(cascadeIndex) * shadowViewMatrix,
+            };
+            uboData.shadowViewMatrices[cascadeIndex] = shadowViewMatrix;
+            uboData.shadowViewProjectionMatrices[cascadeIndex] = shadowViewProjectionMatrix;
+            uboData.mainToShadowViewMatrices[cascadeIndex] = shadowViewMatrix * viewMatrixInverse;
+            uboData.mainToShadowViewProjectionMatrices[cascadeIndex] = shadowViewProjectionMatrix
+                                                                       * viewMatrixInverse;
+        }
+        glBindBuffer(GL_UNIFORM_BUFFER, _ubo.get());
+        checkError();
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformBufferData), &uboData);
+        checkError();
     }
 
     {
@@ -155,9 +222,7 @@ void OpenGLWidget::paintGL()
 
         _shadowDepthProgram.use();
         for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
-            _shadowDepthProgram.setUniform("u_shadowViewMatrix", shadowViewMatrices[cascadeIndex]);
-            _shadowDepthProgram.setUniform("u_shadowViewProjectionMatrix",
-                                           shadowViewProjectionMatrices[cascadeIndex]);
+            _shadowDepthProgram.setUniform("u_cascadeIndex", cascadeIndex);
 
             _shadowMapFramebuffer.bind(cascadeIndex);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -168,9 +233,7 @@ void OpenGLWidget::paintGL()
         }
 
         _geometryProgram.use();
-        _geometryProgram.setUniform("u_time", time);
-        _geometryProgram.setUniform("u_viewMatrix", camera->viewMatrix());
-        _geometryProgram.setUniform("u_viewProjectionMatrix", camera->viewProjectionMatrix());
+        _geometryProgram.setUniform("u_cameraIndex", 0);
         _geometryProgram.setUniform("u_isAboveWaterOnly", 0);
         _geometryProgram.setUniform("u_isUnderWaterOnly", 0);
 
@@ -196,9 +259,7 @@ void OpenGLWidget::paintGL()
             cameraPosition.y
             >= 138.0f + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
 
-        _geometryProgram.setUniform("u_viewMatrix", reflectionCamera.viewMatrix());
-        _geometryProgram.setUniform("u_viewProjectionMatrix",
-                                    reflectionCamera.viewProjectionMatrix());
+        _geometryProgram.setUniform("u_cameraIndex", 1);
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 1 : 0);
         _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 0 : 1);
 
@@ -211,9 +272,7 @@ void OpenGLWidget::paintGL()
             }
         }
 
-        _geometryProgram.setUniform("u_viewMatrix", refractionCamera.viewMatrix());
-        _geometryProgram.setUniform("u_viewProjectionMatrix",
-                                    refractionCamera.viewProjectionMatrix());
+        _geometryProgram.setUniform("u_cameraIndex", 2);
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 0 : 1);
         _geometryProgram.setUniform("u_isUnderWaterOnly", isAboveWater ? 1 : 0);
 
@@ -249,41 +308,6 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE13, _refractionGeometryFramebuffer.normalTexture()},
         {GL_TEXTURE14, _refractionGeometryFramebuffer.albedoTexture()},
     });
-
-    const auto viewMatrixInverse{glm::inverse(camera->viewMatrix())};
-
-    _lightingProgram.use();
-    _lightingProgram.setUniform("u_viewMatrix", camera->viewMatrix());
-    _lightingProgram.setUniform("u_projectionMatrixInverse",
-                                glm::inverse(camera->projectionMatrix()));
-    _lightingProgram.setUniform("u_reflectionProjectionMatrix", reflectionCamera.projectionMatrix());
-    _lightingProgram.setUniform("u_originalToReflectionViewMatrix",
-                                reflectionCamera.viewMatrix() * viewMatrixInverse);
-    _lightingProgram.setUniform("u_reflectionToOriginalViewMatrix",
-                                camera->viewMatrix() * glm::inverse(reflectionCamera.viewMatrix()));
-    _lightingProgram.setUniform("u_refractionProjectionMatrix", refractionCamera.projectionMatrix());
-    _lightingProgram.setUniform("u_originalToRefractionViewMatrix",
-                                refractionCamera.viewMatrix() * viewMatrixInverse);
-    _lightingProgram.setUniform("u_refractionToOriginalViewMatrix",
-                                camera->viewMatrix() * glm::inverse(refractionCamera.viewMatrix()));
-    _lightingProgram.setUniform("u_cameraNear", camera->near());
-    _lightingProgram.setUniform("u_cameraFar", camera->far());
-    {
-        // In the lighting pass, positions are transformed directly from the camera's view space to
-        // the shadow map's view and clip spaces.
-        for (auto &shadowViewMatrix : shadowViewMatrices) {
-            shadowViewMatrix = shadowViewMatrix * viewMatrixInverse;
-        }
-        for (auto &shadowViewProjectionMatrix : shadowViewProjectionMatrices) {
-            shadowViewProjectionMatrix = shadowViewProjectionMatrix * viewMatrixInverse;
-        }
-    }
-    _lightingProgram.setUniforms("u_shadowViewMatrices",
-                                 ShadowMapCamera::CascadeCount,
-                                 shadowViewMatrices);
-    _lightingProgram.setUniforms("u_shadowViewProjectionMatrices",
-                                 ShadowMapCamera::CascadeCount,
-                                 shadowViewProjectionMatrices);
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     checkError();

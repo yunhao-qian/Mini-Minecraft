@@ -59,6 +59,7 @@ private:
     ShaderProgram _shadowDepthProgram;
     ShaderProgram _geometryProgram;
     ShaderProgram _lightingProgram;
+    OpenGLObject _ubo;
     ArrayTexture2D _colorTexture;
     ArrayTexture2D _normalTexture;
     ShadowMapFramebuffer _shadowMapFramebuffer;
