@@ -24,7 +24,7 @@ struct VertexAttributeTrait;
 
 struct BlockFace
 {
-    glm::ivec3 blockPosition;
+    glm::ivec3 faceOrigin;
     GLubyte faceIndex;
     GLubyte textureIndex;
     GLubyte blockType;
@@ -35,7 +35,7 @@ template<>
 struct VertexAttributeTrait<BlockFace>
 {
     static constexpr auto Attributes{std::to_array<VertexAttribute>({
-        {true, 0u, 3, GL_INT, offsetof(BlockFace, blockPosition)},
+        {true, 0u, 3, GL_INT, offsetof(BlockFace, faceOrigin)},
         {true, 1u, 1, GL_UNSIGNED_BYTE, offsetof(BlockFace, faceIndex)},
         {true, 2u, 1, GL_UNSIGNED_BYTE, offsetof(BlockFace, textureIndex)},
         {true, 3u, 1, GL_UNSIGNED_BYTE, offsetof(BlockFace, blockType)},

@@ -97,6 +97,15 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
         {0, 0, -1},
     })};
 
+    constexpr auto FaceOrigins{std::to_array<glm::ivec3>({
+        {1, 0, 1},
+        {0, 0, 0},
+        {0, 1, 1},
+        {0, 0, 0},
+        {0, 0, 1},
+        {1, 0, 0},
+    })};
+
     const auto block{_blocks[position.x + 1][position.y + 1][position.z + 1]};
     if (block == BlockType::Air) {
         return;
@@ -104,13 +113,12 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
 
     // Use integer coordinates to avoid floating-point rounding errors, e.g.,
     // float(i) + 1.0f != float(i + 1).
-    const glm::ivec3 blockPosition{
+    const glm::ivec3 blockMinPoint{
         _chunk->_originXZ[0] + position.x,
         position.y,
         _chunk->_originXZ[1] + position.z,
     };
-    const auto blockMinPoint{blockPosition};
-    const auto blockMaxPoint{blockPosition + 1};
+    const auto blockMaxPoint{blockMinPoint + 1};
 
     for (const auto faceIndex : std::views::iota(0, 6)) {
         const auto neighborPosition{position + FaceDirections[faceIndex]};
@@ -141,10 +149,10 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
                 }
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::Opaque)] = true;
             }
-            if (blockPosition.y < WaterLevel && neighborBlock == BlockType::Water) {
+            if (blockMinPoint.y < WaterLevel && neighborBlock == BlockType::Water) {
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::UnderWater)] = true;
             }
-            if (blockPosition.y >= WaterLevel - 1) {
+            if (blockMinPoint.y >= WaterLevel - 1) {
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::AboveWater)] = true;
             }
         }
@@ -183,7 +191,7 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
         }
 
         const BlockFace blockFace{
-            .blockPosition{blockPosition},
+            .faceOrigin{blockMinPoint + FaceOrigins[faceIndex]},
             .faceIndex = static_cast<GLubyte>(faceIndex),
             .textureIndex = static_cast<GLubyte>(textureRowColumn[0] * 16 + textureRowColumn[1]),
             .blockType = static_cast<std::underlying_type_t<BlockType>>(block),
