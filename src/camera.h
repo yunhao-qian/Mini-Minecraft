@@ -60,9 +60,9 @@ public:
 
     const glm::mat4 &viewProjectionMatrix() const { return _viewProjectionMatrix; }
 
-    Camera createReflectionCamera(const float waterElevation) const;
+    Camera createReflectionCamera(const float waterLevel) const;
 
-    Camera createRefractionCamera(const float waterElevation, const float refractiveIndex) const;
+    Camera createRefractionCamera(const float waterLevel, const float refractiveIndex) const;
 
     bool isInViewFrustum(const AlignedBox3D &box) const;
 

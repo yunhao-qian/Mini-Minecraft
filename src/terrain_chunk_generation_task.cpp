@@ -2,6 +2,7 @@
 
 #include "block_face_generation_task.h"
 #include "block_type.h"
+#include "constants.h"
 #include "glm/common.hpp"
 
 #include <glm/gtc/noise.hpp>
@@ -210,9 +211,9 @@ void TerrainChunkGenerationTask::generateColumn(const glm::ivec2 localXZ)
         }
     }
 
-    if (intElevation < 138) {
+    if (intElevation < WaterLevel) {
         // Add water
-        for (const auto y : std::views::iota(intElevation, 138)) {
+        for (const auto y : std::views::iota(intElevation, WaterLevel)) {
             _chunk->setBlockAtLocal(glm::ivec3{localX, y, localZ}, BlockType::Water);
         }
     }

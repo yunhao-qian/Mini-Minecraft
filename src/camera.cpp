@@ -7,11 +7,11 @@
 
 namespace minecraft {
 
-Camera Camera::createReflectionCamera(const float waterElevation) const
+Camera Camera::createReflectionCamera(const float waterLevel) const
 {
     const glm::vec3 position{
         _pose.position().x,
-        2.0f * waterElevation - _pose.position().y,
+        2.0f * waterLevel - _pose.position().y,
         _pose.position().z,
     };
     glm::quat orientation;
@@ -37,16 +37,16 @@ Camera Camera::createReflectionCamera(const float waterElevation) const
     return camera;
 }
 
-Camera Camera::createRefractionCamera(const float waterElevation, const float refractiveIndex) const
+Camera Camera::createRefractionCamera(const float waterLevel, const float refractiveIndex) const
 {
     // Approximates the apparent shift in camera position due to refraction at the water surface.
     // Note that the refracted rays do not converge to a single point, so this is a simplified
     // model.
     auto position{_pose.position()};
-    if (position.y >= waterElevation) {
-        position.y = waterElevation + (position.y - waterElevation) * refractiveIndex;
+    if (position.y >= waterLevel) {
+        position.y = waterLevel + (position.y - waterLevel) * refractiveIndex;
     } else {
-        position.y = waterElevation - (waterElevation - position.y) / refractiveIndex;
+        position.y = waterLevel - (waterLevel - position.y) / refractiveIndex;
     }
 
     Pose pose{position};

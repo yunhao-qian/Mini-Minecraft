@@ -21,7 +21,7 @@ flat out vec3 v_viewSpaceBitangent;
 flat out vec3 v_viewSpaceNormal;
 flat out int v_blockType;
 flat out int v_mediumType;
-out float v_waterElevation;
+out float v_waterLevel;
 
 vec2 randomOffset(float frequency)
 {
@@ -63,5 +63,5 @@ void main()
     v_mediumType = a_mediumType;
 
     // TODO: Replace the hardcoded water level.
-    v_waterElevation = 138.0 + waterWaveOffset;
+    v_waterLevel = 138.0 + waterWaveOffset;
 }

@@ -2,6 +2,7 @@
 
 #include "aligned_box_3d.h"
 #include "block_type.h"
+#include "constants.h"
 #include "direction.h"
 
 #include <limits>
@@ -140,10 +141,10 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
                 }
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::Opaque)] = true;
             }
-            if (blockPosition.y < 138 && neighborBlock == BlockType::Water) {
+            if (blockPosition.y < WaterLevel && neighborBlock == BlockType::Water) {
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::UnderWater)] = true;
             }
-            if (blockPosition.y >= 138 - 1) {
+            if (blockPosition.y >= WaterLevel - 1) {
                 blockFaceGroups[static_cast<int>(BlockFaceGroup::AboveWater)] = true;
             }
         }

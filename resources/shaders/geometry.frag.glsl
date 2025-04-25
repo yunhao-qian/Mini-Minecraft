@@ -18,7 +18,7 @@ flat in vec3 v_viewSpaceBitangent;
 flat in vec3 v_viewSpaceNormal;
 flat in int v_blockType;
 flat in int v_mediumType;
-in float v_waterElevation;
+in float v_waterLevel;
 
 layout(location = 0) out float f_depth;
 layout(location = 1) out vec4 f_normal;
@@ -26,10 +26,10 @@ layout(location = 2) out vec4 f_albedo;
 
 void main()
 {
-    if (u_isAboveWaterOnly != 0 && v_worldSpacePosition.y < v_waterElevation) {
+    if (u_isAboveWaterOnly != 0 && v_worldSpacePosition.y < v_waterLevel) {
         discard;
     }
-    if (u_isUnderWaterOnly != 0 && v_worldSpacePosition.y > v_waterElevation) {
+    if (u_isUnderWaterOnly != 0 && v_worldSpacePosition.y > v_waterLevel) {
         discard;
     }
 
@@ -59,7 +59,7 @@ void main()
     // type from the camera's perspective.
     int actualMediumType;
     if (gl_FrontFacing) {
-        if (v_mediumType == BlockTypeWater && v_worldSpacePosition.y > v_waterElevation) {
+        if (v_mediumType == BlockTypeWater && v_worldSpacePosition.y > v_waterLevel) {
             actualMediumType = BlockTypeAir;
         } else {
             actualMediumType = v_mediumType;

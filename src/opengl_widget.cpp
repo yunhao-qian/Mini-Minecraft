@@ -158,7 +158,7 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
-    const auto waterElevation{138.0f + getAverageWaterWaveOffset()};
+    const auto averageWaterLevel{static_cast<float>(WaterLevel) + getAverageWaterWaveOffset()};
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
 
@@ -169,8 +169,8 @@ void OpenGLWidget::paintGL()
     }
     ShadowMapCamera shadowMapCamera;
     shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), *camera);
-    const auto reflectionCamera{camera->createReflectionCamera(waterElevation)};
-    const auto refractionCamera{camera->createRefractionCamera(waterElevation, 1.1f)};
+    const auto reflectionCamera{camera->createReflectionCamera(averageWaterLevel)};
+    const auto refractionCamera{camera->createRefractionCamera(averageWaterLevel, 1.1f)};
 
     // Update the UBO data.
     {
@@ -259,9 +259,10 @@ void OpenGLWidget::paintGL()
         checkError();
         drawBlockFaceGroup(BlockFaceGroup::Translucent, *camera);
 
-        const auto isAboveWater{
-            cameraPosition.y
-            >= 138.0f + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
+        const auto waterLevel{
+            static_cast<float>(WaterLevel)
+            + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
+        const auto isAboveWater{cameraPosition.y >= waterLevel};
 
         _geometryProgram.setUniform("u_cameraIndex", 1);
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 1 : 0);
