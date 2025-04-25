@@ -3,7 +3,7 @@
 
 namespace minecraft {
 
-constexpr auto ShadowMapCascadeCount{4};
+constexpr auto ShadowMapCascadeCount{6};
 
 constexpr auto WaterLevel{138};
 

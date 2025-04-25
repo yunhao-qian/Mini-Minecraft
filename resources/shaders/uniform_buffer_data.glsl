@@ -1,4 +1,4 @@
-const int ShadowMapCascadeCount = 4;
+const int ShadowMapCascadeCount = 6;
 
 layout(std140) uniform UniformBufferData
 {

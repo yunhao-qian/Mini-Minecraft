@@ -151,7 +151,7 @@ qt_add_executable(mini-minecraft MANUAL_FINALIZATION ${PROJECT_SOURCES} "${SHADE
 add_custom_target(preprocess-shaders ALL DEPENDS ${PREPROCESSED_SHADER_SOURCES})
 add_dependencies(mini-minecraft preprocess-shaders)
 
-option(MINECRAFT_NO_GL_ERROR_CHECK "Disable OpenGLContext::checkError()" OFF)
+option(MINECRAFT_NO_GL_ERROR_CHECK "Disable OpenGLContext::checkError()" ON)
 if (MINECRAFT_NO_GL_ERROR_CHECK)
     target_compile_definitions(mini-minecraft PRIVATE MINECRAFT_NO_GL_ERROR_CHECK)
 endif()

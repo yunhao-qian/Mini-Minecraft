@@ -18,7 +18,7 @@ public:
            const int height,
            const float fieldOfViewY = 45.0f,
            const float near = 0.1f,
-           const float far = 512.0f)
+           const float far = 1024.0f)
         : _pose{pose}
         , _fieldOfViewY{fieldOfViewY}
         , _aspect{}
