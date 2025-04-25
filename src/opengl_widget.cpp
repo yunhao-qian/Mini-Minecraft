@@ -309,6 +309,8 @@ void OpenGLWidget::paintGL()
         {GL_TEXTURE14, _refractionGeometryFramebuffer.albedoTexture()},
     });
 
+    _lightingProgram.use();
+
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     checkError();
     // Unnecessary, but set the viewport size for clarity.
