@@ -11,16 +11,16 @@ namespace minecraft {
 
 void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &camera)
 {
-    std::array<float, CascadeCount + 1> ClipSpaceZSplits;
+    std::array<float, ShadowMapCascadeCount + 1> ClipSpaceZSplits;
     ClipSpaceZSplits.front() = -1.0f;
     ClipSpaceZSplits.back() = 1.0f;
     {
         // Logarithmic split scheme:
         // https://computergraphics.stackexchange.com/questions/13026/cascaded-shadow-mapping-csm-partitioning-the-frustum-to-a-nearly-1-by-1-mappi
         const auto zRatio{camera.far() / camera.near()};
-        for (const auto cascadeIndex : std::views::iota(1, CascadeCount)) {
+        for (const auto cascadeIndex : std::views::iota(1, ShadowMapCascadeCount)) {
             const auto splitRatio{static_cast<float>(cascadeIndex)
-                                  / static_cast<float>(CascadeCount)};
+                                  / static_cast<float>(ShadowMapCascadeCount)};
             const auto zSplit{camera.near() * std::pow(zRatio, splitRatio)};
             const glm::vec4 viewSpaceSplit{0.0f, 0.0f, -zSplit, 1.0f};
             const auto clipSpaceSplit{camera.projectionMatrix() * viewSpaceSplit};
@@ -36,7 +36,7 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
 
     const auto viewProjectionMatrixInverse{glm::inverse(camera.viewProjectionMatrix())};
 
-    for (const auto cascadeIndex : std::views::iota(0, CascadeCount)) {
+    for (const auto cascadeIndex : std::views::iota(0, ShadowMapCascadeCount)) {
         constexpr auto Infinity{std::numeric_limits<float>::infinity()};
         glm::vec3 minPoint{Infinity};
         glm::vec3 maxPoint{-Infinity};

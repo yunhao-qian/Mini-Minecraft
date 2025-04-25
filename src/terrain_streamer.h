@@ -17,17 +17,11 @@ namespace minecraft {
 class TerrainStreamer
 {
 public:
-    struct UpdateResult
-    {
-        std::vector<TerrainChunk *> chunksWithOpaqueFaces;
-        std::vector<TerrainChunk *> chunksWithTranslucentFaces;
-    };
-
     TerrainStreamer(Terrain *const terrain)
         : _terrain{terrain}
     {}
 
-    UpdateResult update(const glm::vec3 &cameraPosition);
+    std::vector<TerrainChunk *> update(const glm::vec3 &cameraPosition);
 
 private:
     friend class TerrainChunkGenerationTask;

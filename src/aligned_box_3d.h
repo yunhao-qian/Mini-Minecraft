@@ -8,6 +8,10 @@ namespace minecraft {
 class AlignedBox3D
 {
 public:
+    AlignedBox3D()
+        : AlignedBox3D{glm::vec3{0.0f}, glm::vec3{0.0f}}
+    {}
+
     AlignedBox3D(const glm::vec3 &minPoint, const glm::vec3 &maxPoint)
         : _minPoint{minPoint}
         , _maxPoint{maxPoint}
@@ -16,6 +20,8 @@ public:
     const glm::vec3 &minPoint() const { return _minPoint; }
 
     const glm::vec3 &maxPoint() const { return _maxPoint; }
+
+    bool isEmpty() const { return !glm::any(glm::lessThan(_minPoint, _maxPoint)); }
 
     bool sweep(const glm::vec3 &velocity,
                const AlignedBox3D &other,

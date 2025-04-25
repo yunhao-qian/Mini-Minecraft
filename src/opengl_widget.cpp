@@ -1,6 +1,8 @@
 #include "opengl_widget.h"
 
+#include "constants.h"
 #include "shadow_map_camera.h"
+#include "terrain_chunk.h"
 #include "uniform_buffer_data.h"
 #include "water_wave.h"
 
@@ -197,7 +199,7 @@ void OpenGLWidget::paintGL()
             .mainToRefractionViewMatrix{refractionCamera.viewMatrix() * viewMatrixInverse},
             .refractionToMainViewMatrix{viewMatrix * glm::inverse(refractionCamera.viewMatrix())},
         };
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCascadeCount)) {
             const auto &shadowViewMatrix{shadowMapCamera.viewMatrix(cascadeIndex)};
             const auto shadowViewProjectionMatrix{
                 shadowMapCamera.projectionMatrix(cascadeIndex) * shadowViewMatrix,
@@ -218,19 +220,29 @@ void OpenGLWidget::paintGL()
         const auto &cameraPosition{camera->pose().position()};
 
         const std::lock_guard lock{_scene.terrainMutex()};
-        const auto updateResult{_terrainStreamer.update(cameraPosition)};
+        const auto visibleChunks{_terrainStreamer.update(cameraPosition)};
 
         _shadowDepthProgram.use();
-        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCamera::CascadeCount)) {
+        for (const auto cascadeIndex : std::views::iota(0, ShadowMapCascadeCount)) {
             _shadowDepthProgram.setUniform("u_cascadeIndex", cascadeIndex);
 
             _shadowMapFramebuffer.bind(cascadeIndex);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             checkError();
-            for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-                chunk->drawOpaque();
+            for (const auto chunk : visibleChunks) {
+                chunk->draw(BlockFaceGroup::Opaque);
             }
         }
+
+        const auto drawBlockFaceGroup{
+            [&visibleChunks](const BlockFaceGroup group, const Camera &camera) {
+                for (const auto chunk : visibleChunks) {
+                    const auto boundingBox{chunk->rendererBoundingBox(group)};
+                    if (!boundingBox.isEmpty() && camera.isInViewFrustum(boundingBox)) {
+                        chunk->draw(group);
+                    }
+                }
+            }};
 
         _geometryProgram.use();
         _geometryProgram.setUniform("u_cameraIndex", 0);
@@ -240,20 +252,12 @@ void OpenGLWidget::paintGL()
         _opaqueGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         checkError();
-        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            if (camera->isInViewFrustum(chunk->boundingBox())) {
-                chunk->drawOpaque();
-            }
-        }
+        drawBlockFaceGroup(BlockFaceGroup::Opaque, *camera);
 
         _translucentGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         checkError();
-        for (const auto chunk : updateResult.chunksWithTranslucentFaces) {
-            if (camera->isInViewFrustum(chunk->boundingBox())) {
-                chunk->drawTranslucent();
-            }
-        }
+        drawBlockFaceGroup(BlockFaceGroup::Translucent, *camera);
 
         const auto isAboveWater{
             cameraPosition.y
@@ -266,11 +270,8 @@ void OpenGLWidget::paintGL()
         _reflectionGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         checkError();
-        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            if (reflectionCamera.isInViewFrustum(chunk->boundingBox())) {
-                chunk->drawOpaque();
-            }
-        }
+        drawBlockFaceGroup(isAboveWater ? BlockFaceGroup::AboveWater : BlockFaceGroup::UnderWater,
+                           reflectionCamera);
 
         _geometryProgram.setUniform("u_cameraIndex", 2);
         _geometryProgram.setUniform("u_isAboveWaterOnly", isAboveWater ? 0 : 1);
@@ -279,11 +280,8 @@ void OpenGLWidget::paintGL()
         _refractionGeometryFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         checkError();
-        for (const auto chunk : updateResult.chunksWithOpaqueFaces) {
-            if (refractionCamera.isInViewFrustum(chunk->boundingBox())) {
-                chunk->drawOpaque();
-            }
-        }
+        drawBlockFaceGroup(isAboveWater ? BlockFaceGroup::UnderWater : BlockFaceGroup::AboveWater,
+                           refractionCamera);
     }
 
     glDisable(GL_DEPTH_TEST);

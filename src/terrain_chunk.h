@@ -16,15 +16,16 @@
 
 namespace minecraft {
 
+enum class BlockFaceGroup : int {
+    Opaque = 0,
+    Translucent = 1,
+    AboveWater = 2,
+    UnderWater = 3,
+};
+
 class TerrainChunk
 {
 public:
-    struct PrepareDrawResult
-    {
-        bool hasOpaqueFaces;
-        bool hasTranslucentFaces;
-    };
-
     TerrainChunk(const glm::ivec2 originXZ)
         : _originXZ{originXZ}
         , _neighbors{}
@@ -33,11 +34,11 @@ public:
         , _isVisible{false}
         , _blockFaceMutex{}
         , _isBlockFaceReady{false}
-        , _opaqueBlockFaces{}
-        , _translucentBlockFaces{}
+        , _blockFaces{}
+        , _blockFaceBoundingBoxes{}
         , _blockFaceVersion{-1}
-        , _opaqueRenderer{}
-        , _translucentRenderer{}
+        , _renderers{}
+        , _rendererBoundingBoxes{}
         , _rendererVersion{-1}
     {}
 
@@ -77,20 +78,24 @@ public:
         }
     }
 
-    PrepareDrawResult prepareDraw();
+    void prepareDraw();
 
-    void drawOpaque()
+    const AlignedBox3D &rendererBoundingBox(const BlockFaceGroup group) const
     {
-        // This gives 2 triangles per quad: (0, 1, 2) and (0, 2, 3).
-        _opaqueRenderer.draw(4, GL_TRIANGLE_FAN);
+        return _rendererBoundingBoxes[static_cast<int>(group)];
     }
 
-    void drawTranslucent() { _translucentRenderer.draw(4, GL_TRIANGLE_FAN); }
+    void draw(const BlockFaceGroup group)
+    {
+        // This gives 2 triangles per quad: (0, 1, 2) and (0, 2, 3).
+        _renderers[static_cast<int>(group)].draw(4, GL_TRIANGLE_FAN);
+    }
 
     void releaseRendererResources()
     {
-        _opaqueRenderer.releaseResources();
-        _translucentRenderer.releaseResources();
+        for (auto &renderer : _renderers) {
+            renderer.releaseResources();
+        }
         _rendererVersion = -1;
     }
 
@@ -145,12 +150,12 @@ private:
 
     std::mutex _blockFaceMutex;
     bool _isBlockFaceReady;
-    std::vector<BlockFace> _opaqueBlockFaces;
-    std::vector<BlockFace> _translucentBlockFaces;
+    std::array<std::vector<BlockFace>, 4> _blockFaces;
+    std::array<AlignedBox3D, 4> _blockFaceBoundingBoxes;
     std::int32_t _blockFaceVersion;
 
-    InstancedRenderer _opaqueRenderer;
-    InstancedRenderer _translucentRenderer;
+    std::array<InstancedRenderer, 4> _renderers;
+    std::array<AlignedBox3D, 4> _rendererBoundingBoxes;
     std::int32_t _rendererVersion;
 };
 

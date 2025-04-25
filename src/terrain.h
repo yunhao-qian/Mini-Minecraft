@@ -64,7 +64,7 @@ public:
 
 private:
     template<typename Self>
-    static auto getTrunkImpl(Self &self, const glm::ivec2 xz)
+    static auto getChunkImpl(Self &self, const glm::ivec2 xz)
     {
         const auto it{self._chunks.find(TerrainChunk::alignToChunkOrigin(xz))};
         if (it == self._chunks.end()) {
@@ -78,12 +78,12 @@ private:
 
 inline const TerrainChunk *Terrain::getChunk(const glm::ivec2 xz) const
 {
-    return getTrunkImpl(*this, xz);
+    return getChunkImpl(*this, xz);
 }
 
 inline TerrainChunk *Terrain::getChunk(const glm::ivec2 xz)
 {
-    return getTrunkImpl(*this, xz);
+    return getChunkImpl(*this, xz);
 }
 
 } // namespace minecraft

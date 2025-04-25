@@ -28,8 +28,9 @@ private:
     std::array<std::array<std::array<BlockType, TerrainChunk::SizeZ + 2>, TerrainChunk::SizeY + 2>,
                TerrainChunk::SizeX + 2>
         _blocks;
-    std::vector<BlockFace> _opaqueBlockFaces;
-    std::vector<BlockFace> _translucentBlockFaces;
+    std::array<std::vector<BlockFace>, 4> _blockFaces;
+    std::array<glm::ivec3, 4> _blockFaceMinPoints;
+    std::array<glm::ivec3, 4> _blockFaceMaxPoints;
 };
 
 } // namespace minecraft

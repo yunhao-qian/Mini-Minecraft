@@ -1,8 +1,10 @@
 #include "block_face_generation_task.h"
 
+#include "aligned_box_3d.h"
 #include "block_type.h"
 #include "direction.h"
 
+#include <limits>
 #include <mutex>
 #include <ranges>
 #include <utility>
@@ -12,6 +14,9 @@ namespace minecraft {
 BlockFaceGenerationTask::BlockFaceGenerationTask(TerrainChunk *const chunk)
     : _chunk{chunk}
     , _blocks{}
+    , _blockFaces{}
+    , _blockFaceMinPoints{}
+    , _blockFaceMaxPoints{}
 {
     // Because we cannot access the block data safely from worker threads, we make a local copy of
     // them in the task constructor.
@@ -58,6 +63,9 @@ BlockFaceGenerationTask::BlockFaceGenerationTask(TerrainChunk *const chunk)
 
 void BlockFaceGenerationTask::run()
 {
+    _blockFaceMinPoints.fill(glm::ivec3{std::numeric_limits<int>::max()});
+    _blockFaceMaxPoints.fill(glm::ivec3{std::numeric_limits<int>::min()});
+
     for (const auto x : std::views::iota(0, TerrainChunk::SizeX)) {
         for (const auto y : std::views::iota(0, TerrainChunk::SizeY)) {
             for (const auto z : std::views::iota(0, TerrainChunk::SizeZ)) {
@@ -65,10 +73,16 @@ void BlockFaceGenerationTask::run()
             }
         }
     }
+
     const std::lock_guard lock{_chunk->_blockFaceMutex};
     _chunk->_isBlockFaceReady = true;
-    _chunk->_opaqueBlockFaces = std::move(_opaqueBlockFaces);
-    _chunk->_translucentBlockFaces = std::move(_translucentBlockFaces);
+    for (const auto i : std::views::iota(0, 4)) {
+        _chunk->_blockFaces[i] = std::move(_blockFaces[i]);
+        _chunk->_blockFaceBoundingBoxes[i] = AlignedBox3D{
+            glm::vec3{_blockFaceMinPoints[i]},
+            glm::vec3{_blockFaceMaxPoints[i]},
+        };
+    }
 }
 
 void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
@@ -94,13 +108,15 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
         position.y,
         _chunk->_originXZ[1] + position.z,
     };
+    const auto blockMinPoint{blockPosition};
+    const auto blockMaxPoint{blockPosition + 1};
 
     for (const auto faceIndex : std::views::iota(0, 6)) {
         const auto neighborPosition{position + FaceDirections[faceIndex]};
         const auto neighborBlock{
             _blocks[neighborPosition.x + 1][neighborPosition.y + 1][neighborPosition.z + 1]};
 
-        std::vector<BlockFace> *blockFaces;
+        std::array<bool, 4> blockFaceGroups{false, false, false, false};
         if (block == BlockType::Water) {
             if (neighborBlock != BlockType::Air) {
                 continue;
@@ -110,18 +126,26 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
                 // face, we skip the other faces to avoid rendering artifacts.
                 continue;
             }
-            blockFaces = &_translucentBlockFaces;
-        } else if (block == BlockType::Lava) {
-            if (neighborBlock != BlockType::Air && neighborBlock != BlockType::Water) {
-                continue;
-            }
-            blockFaces = &_opaqueBlockFaces;
+            blockFaceGroups[static_cast<int>(BlockFaceGroup::Translucent)] = true;
         } else {
-            if (neighborBlock != BlockType::Air && neighborBlock != BlockType::Water
-                && neighborBlock != BlockType::Lava) {
-                continue;
+            if (block == BlockType::Lava) {
+                if (neighborBlock != BlockType::Air && neighborBlock != BlockType::Water) {
+                    continue;
+                }
+                blockFaceGroups[static_cast<int>(BlockFaceGroup::Opaque)] = true;
+            } else {
+                if (neighborBlock != BlockType::Air && neighborBlock != BlockType::Water
+                    && neighborBlock != BlockType::Lava) {
+                    continue;
+                }
+                blockFaceGroups[static_cast<int>(BlockFaceGroup::Opaque)] = true;
             }
-            blockFaces = &_opaqueBlockFaces;
+            if (blockPosition.y < 138 && neighborBlock == BlockType::Water) {
+                blockFaceGroups[static_cast<int>(BlockFaceGroup::UnderWater)] = true;
+            }
+            if (blockPosition.y >= 138 - 1) {
+                blockFaceGroups[static_cast<int>(BlockFaceGroup::AboveWater)] = true;
+            }
         }
 
         glm::ivec2 textureRowColumn;
@@ -157,13 +181,23 @@ void BlockFaceGenerationTask::generateBlock(const glm::ivec3 &position)
             textureRowColumn = {10, 8};
         }
 
-        blockFaces->push_back({
+        const BlockFace blockFace{
             .blockPosition{blockPosition},
             .faceIndex = static_cast<GLubyte>(faceIndex),
             .textureIndex = static_cast<GLubyte>(textureRowColumn[0] * 16 + textureRowColumn[1]),
             .blockType = static_cast<std::underlying_type_t<BlockType>>(block),
             .mediumType = static_cast<std::underlying_type_t<BlockType>>(neighborBlock),
-        });
+        };
+        for (const auto i : std::views::iota(0, 4)) {
+            if (!blockFaceGroups[i]) {
+                continue;
+            }
+            _blockFaces[i].push_back(blockFace);
+            // This is the simplified logic. We can constrain the bounding box to include only the
+            // face instead of the whole block, but this is not necessary for now.
+            _blockFaceMinPoints[i] = glm::min(_blockFaceMinPoints[i], blockMinPoint);
+            _blockFaceMaxPoints[i] = glm::max(_blockFaceMaxPoints[i], blockMaxPoint);
+        }
     }
 }
 

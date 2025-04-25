@@ -26,7 +26,7 @@ float getChunkDistance(const glm::vec3 &position, const glm::ivec2 originXZ)
 
 } // namespace
 
-TerrainStreamer::UpdateResult TerrainStreamer::update(const glm::vec3 &cameraPosition)
+std::vector<TerrainChunk *> TerrainStreamer::update(const glm::vec3 &cameraPosition)
 {
     const glm::vec2 cameraXZ{cameraPosition.x, cameraPosition.z};
     const auto minOrigin{
@@ -79,18 +79,9 @@ TerrainStreamer::UpdateResult TerrainStreamer::update(const glm::vec3 &cameraPos
         });
     }
 
-    UpdateResult result;
-    const auto prepareChunk{[&result](TerrainChunk *const chunk) {
-        const auto prepareDrawResult{chunk->prepareDraw()};
-        if (prepareDrawResult.hasOpaqueFaces) {
-            result.chunksWithOpaqueFaces.push_back(chunk);
-        }
-        if (prepareDrawResult.hasTranslucentFaces) {
-            result.chunksWithTranslucentFaces.push_back(chunk);
-        }
-    }};
+    std::vector<TerrainChunk *> result;
 
-    _terrain->forEachChunk([&cameraPosition, &prepareChunk](TerrainChunk *const chunk) {
+    _terrain->forEachChunk([&cameraPosition, &result](TerrainChunk *const chunk) {
         const auto distance{getChunkDistance(cameraPosition, chunk->originXZ())};
         if (distance <= VisibleDistance) {
             // All chunks closer than VisibleDistance are visible.
@@ -98,12 +89,14 @@ TerrainStreamer::UpdateResult TerrainStreamer::update(const glm::vec3 &cameraPos
                 chunk->setVisible(true);
                 chunk->markSelfAndNeighborsDirty();
             }
-            prepareChunk(chunk);
+            chunk->prepareDraw();
+            result.push_back(chunk);
         } else if (distance <= GenerateDistance) {
             // Do nothing for chunks between VisibleDistance and GenerateDistance. This introduces
             // hysteresis to prevent flickering.
             if (chunk->isVisible()) {
-                prepareChunk(chunk);
+                chunk->prepareDraw();
+                result.push_back(chunk);
             }
         } else {
             // All chunks farther than GenerateDistance are invisible.

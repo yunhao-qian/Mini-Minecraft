@@ -1,6 +1,6 @@
 #include "shadow_map_framebuffer.h"
 
-#include "shadow_map_camera.h"
+#include "constants.h"
 
 namespace minecraft {
 
@@ -49,7 +49,7 @@ void ShadowMapFramebuffer::resize(const int width, const int height)
                           GL_RG32F,
                           width,
                           height,
-                          ShadowMapCamera::CascadeCount,
+                          ShadowMapCascadeCount,
                           0,
                           GL_RG,
                           GL_FLOAT,

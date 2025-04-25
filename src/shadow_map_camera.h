@@ -2,6 +2,7 @@
 #define MINECRAFT_SHADOW_MAP_CAMERA_H
 
 #include "camera.h"
+#include "constants.h"
 
 #include <glm/glm.hpp>
 
@@ -26,11 +27,9 @@ public:
 
     glm::vec2 getDepthBlurScale(const int cascadeIndex) const;
 
-    static constexpr int CascadeCount{4};
-
 private:
-    std::array<glm::mat4, CascadeCount> _viewMatrices;
-    std::array<glm::mat4, CascadeCount> _projectionMatrices;
+    std::array<glm::mat4, ShadowMapCascadeCount> _viewMatrices;
+    std::array<glm::mat4, ShadowMapCascadeCount> _projectionMatrices;
 };
 
 } // namespace minecraft
