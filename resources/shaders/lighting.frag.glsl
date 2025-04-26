@@ -94,7 +94,10 @@ float getNonOccludedProbability(vec3 viewSpacePosition)
                                            cascadeIndex,
                                            shadowViewSpacePosition.z);
     float depthVariance = max(result.depthSquared - result.depth * result.depth, 2e-5);
-    float depthDifference = max(-shadowViewSpacePosition.z - result.depth, 0.0);
+    // Positions computed from screen-space ray marching suffer from precision issues, so we
+    // introduce a bias to avoid self-shadowing. Note that this is usually unnecessary for variance
+    // shadow mapping.
+    float depthDifference = max(-0.1 - shadowViewSpacePosition.z - result.depth, 0.0);
     float probability = depthVariance / (depthVariance + depthDifference * depthDifference);
     // Rescale the probability to reduce light-bleeding artifacts.
     probability = clamp((probability - 0.2) / 0.8, 0.0, 1.0);
@@ -355,12 +358,18 @@ void main()
         // geometry passes, so we use a very small refractive index to reduce visual artifacts.
         const float EtaWater = 1.1;
 
-        vec3 viewSpaceNormal = normalize(texture(u_translucentNormalTexture, v_textureCoords).xyz);
+        vec3 viewSpaceNormal;
+        bool isFrontFacing;
+        {
+            vec4 normalData = texture(u_translucentNormalTexture, v_textureCoords);
+            viewSpaceNormal = normalize(normalData.xyz);
+            isFrontFacing = normalData.w > 0.5;
+        }
         float cosTheta1 = dot(viewSpaceNormal, -viewSpaceDirection);
 
         float eta1;
         float eta2;
-        if (cosTheta1 >= 0.0) {
+        if (isFrontFacing) {
             eta1 = 1.0;
             eta2 = EtaWater;
         } else {
