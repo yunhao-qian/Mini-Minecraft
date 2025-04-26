@@ -21,7 +21,7 @@ constexpr glm::vec2 WaterWaveAngularWaveVectors[WaterWaveCount]{
 };
 constexpr float WaterWaveAngularFrequencies[WaterWaveCount]{4.3f, 3.2f, 1.2f, 4.2f, 1.0f, 2.4f};
 constexpr float WaterWavePhaseOffsets[WaterWaveCount]{3.451f, 4.134f, 4.771f, 4.065f, 4.776f, 5.552f};
-constexpr float WaterWaveExponents[WaterWaveCount]{1.0f, 2.0f, 1.5f, 2.5f, 1.2f, 1.6f};
+constexpr float WaterWaveExponents[WaterWaveCount]{1.2f, 3.0f, 2.0f, 2.5f, 1.4f, 2.2f};
 
 } // namespace
 
