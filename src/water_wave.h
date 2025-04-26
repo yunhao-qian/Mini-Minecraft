@@ -5,9 +5,9 @@
 
 namespace minecraft {
 
-float getWaterWaveOffset(const glm::vec2 position, const float time);
+float getWaterWaveOffset(const glm::vec2 position, const float time, const float amplitudeScale);
 
-float getAverageWaterWaveOffset();
+float getAverageWaterWaveOffset(const float amplitudeScale);
 
 } // namespace minecraft
 

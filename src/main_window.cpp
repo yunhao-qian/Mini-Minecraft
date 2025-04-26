@@ -2,6 +2,7 @@
 
 #include "camera_controls_window.h"
 #include "player_info_window.h"
+#include "scene_settings_window.h"
 
 #include <QAction>
 #include <QApplication>
@@ -11,18 +12,20 @@ namespace minecraft {
 
 MainWindow::MainWindow(QWidget *const parent)
     : QMainWindow{parent}
-    , _openGLWidget{nullptr}
 {
     setWindowTitle("Mini Minecraft");
     resize(1280, 960);
 
-    _openGLWidget = new OpenGLWidget{};
-    setCentralWidget(_openGLWidget);
+    const auto openGLWidget{new OpenGLWidget{}};
+    setCentralWidget(openGLWidget);
     // Give the keyboard input focus to this widget.
-    _openGLWidget->setFocus();
+    openGLWidget->setFocus();
 
     const auto playerInfoWindow{new PlayerInfoWindow{this}};
     playerInfoWindow->setWindowFlag(Qt::Dialog);
+
+    const auto sceneSettingsWindow{new SceneSettingsWindow{&openGLWidget->sceneSettings(), this}};
+    sceneSettingsWindow->setWindowFlag(Qt::Dialog);
 
     const auto cameraControlsWindow{new CameraControlsWindow{this}};
     cameraControlsWindow->setWindowFlag(Qt::Dialog);
@@ -31,6 +34,12 @@ MainWindow::MainWindow(QWidget *const parent)
     {
         const auto menuFile{menuBar()->addMenu("File")};
         menuFile->addAction(actionQuit);
+    }
+
+    const auto actionSceneSettings{new QAction{"Scene Settings", this}};
+    {
+        const auto menuEdit{menuBar()->addMenu("Edit")};
+        menuEdit->addAction(actionSceneSettings);
     }
 
     const auto actionPlayerInfo{new QAction{"Player Information", this}};
@@ -48,6 +57,8 @@ MainWindow::MainWindow(QWidget *const parent)
 
     connect(actionQuit, &QAction::triggered, [] { QApplication::exit(); });
 
+    connect(actionSceneSettings, &QAction::triggered, sceneSettingsWindow, &QWidget::show);
+
     connect(actionPlayerInfo, &QAction::toggled, [playerInfoWindow](const bool checked) {
         if (checked) {
             playerInfoWindow->show();
@@ -61,7 +72,7 @@ MainWindow::MainWindow(QWidget *const parent)
             &QAction::setChecked);
     // Use signals and slots instead of direct function calls because OpenGLWidget::tick() may not
     // run on the GUI thread.
-    connect(_openGLWidget,
+    connect(openGLWidget,
             &OpenGLWidget::playerInfoChanged,
             playerInfoWindow,
             &PlayerInfoWindow::setPlayerInfo);

@@ -5,6 +5,7 @@
 #include "uniform_buffer_data.glsl"
 #include "water_wave.glsl"
 
+uniform float u_waterWaveAmplitudeScale;
 uniform int u_cameraIndex;
 
 layout(location = 0) in ivec3 a_faceOrigin;
@@ -41,7 +42,9 @@ void main()
     v_worldSpacePosition = vec3(a_faceOrigin + textureCoords.x * FaceTangents[a_faceIndex]
                                 + textureCoords.y * FaceBitangents[a_faceIndex]);
     if (a_blockType == BlockTypeWater) {
-        v_worldSpacePosition.y += getWaterWaveOffset(v_worldSpacePosition.xz, u_time);
+        v_worldSpacePosition.y += getWaterWaveOffset(v_worldSpacePosition.xz,
+                                                     u_time,
+                                                     u_waterWaveAmplitudeScale);
     }
 
     v_textureCoords = vec2(textureCoords);
@@ -58,7 +61,10 @@ void main()
     } else {
         // Block faces close to the water need the precise water level to determine the actual
         // medium type.
-        v_waterLevel = 138.0 + getWaterWaveOffset(v_worldSpacePosition.xz, u_time);
+        v_waterLevel = 138.0
+                       + getWaterWaveOffset(v_worldSpacePosition.xz,
+                                            u_time,
+                                            u_waterWaveAmplitudeScale);
     }
 
     gl_Position = u_viewProjectionMatrices[u_cameraIndex] * vec4(v_worldSpacePosition, 1.0);

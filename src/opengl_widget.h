@@ -8,6 +8,7 @@
 #include "player_controller.h"
 #include "player_info_display_data.h"
 #include "scene.h"
+#include "scene_settings.h"
 #include "shader_program.h"
 #include "shadow_map_framebuffer.h"
 #include "terrain_streamer.h"
@@ -15,6 +16,7 @@
 #include <QOpenGLWidget>
 #include <QTimer>
 
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -27,6 +29,8 @@ class OpenGLWidget : public QOpenGLWidget, public OpenGLContext
 public:
     OpenGLWidget(QWidget *const parent = nullptr);
     ~OpenGLWidget() override;
+
+    SceneSettings &sceneSettings() { return _sceneSettings; }
 
 signals:
     void playerInfoChanged(const PlayerInfoDisplayData &displayData);
@@ -55,6 +59,9 @@ private:
     Scene _scene;
     TerrainStreamer _terrainStreamer;
     PlayerController _playerController;
+
+    SceneSettings _sceneSettings;
+    std::int32_t _sceneSettingsVersion;
 
     ShaderProgram _shadowDepthProgram;
     ShaderProgram _geometryProgram;

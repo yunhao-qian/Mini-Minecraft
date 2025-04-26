@@ -3,6 +3,9 @@
 #include "block_type.glsl"
 #include "uniform_buffer_data.glsl"
 
+uniform vec3 u_sunDirection;
+uniform float u_waterRefractiveIndex;
+
 uniform sampler2DArray u_shadowDepthTexture;
 uniform sampler2D u_opaqueDepthTexture;
 uniform sampler2D u_opaqueNormalTexture;
@@ -292,6 +295,12 @@ RayMarchResult rayMarch(vec3 fromViewSpacePosition,
         geometryDepth = texture(depthTexture, textureCoords).r;
         rayDepth = -viewSpacePosition.z;
     }
+    if (geometryDepth >= 1e4) {
+        // The ray goes into the sky. This special case needs to be handled because unrendered
+        // geometry-buffer pixels, which are initialized with large depth values, do not have valid
+        // color values.
+        return RayMarchResult(true, 1e5, viewSpaceDirection, vec2(0.0));
+    }
     return RayMarchResult(hasHitOccurred, rayDepth, normalize(viewSpacePosition), textureCoords);
 }
 
@@ -432,9 +441,7 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
 
 void main()
 {
-    const vec3 WorldSpaceSunDirection = normalize(vec3(1.5, 1.0, 2.0));
-
-    vec3 viewSpaceSunDirection = (u_viewMatrices[0] * vec4(WorldSpaceSunDirection, 0.0)).xyz;
+    vec3 viewSpaceSunDirection = (u_viewMatrices[0] * vec4(u_sunDirection, 0.0)).xyz;
 
     float opaqueDepth = texture(u_opaqueDepthTexture, v_textureCoords).r;
     float translucentDepth = texture(u_translucentDepthTexture, v_textureCoords).r;
@@ -455,9 +462,6 @@ void main()
                                                               0.0);
     } else {
         // Handle water reflections and refractions.
-        // Screen-space reflections and refractions may run into positions not covered by the
-        // geometry passes, so we use a very small refractive index to reduce visual artifacts.
-        const float EtaWater = 1.1;
 
         vec3 viewSpaceNormal;
         bool isFrontFacing;
@@ -472,11 +476,11 @@ void main()
         float eta2;
         if (isFrontFacing) {
             eta1 = 1.0;
-            eta2 = EtaWater;
+            eta2 = u_waterRefractiveIndex;
         } else {
             viewSpaceNormal = -viewSpaceNormal;
             cosTheta1 = -cosTheta1;
-            eta1 = EtaWater;
+            eta1 = u_waterRefractiveIndex;
             eta2 = 1.0;
         }
 

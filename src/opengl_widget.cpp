@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QThreadPool>
 
+#include <cmath>
 #include <initializer_list>
 #include <mutex>
 #include <optional>
@@ -26,6 +27,8 @@ OpenGLWidget::OpenGLWidget(QWidget *const parent)
     , _scene{}
     , _terrainStreamer{&_scene.terrain()}
     , _playerController{&_scene.player()}
+    , _sceneSettings{}
+    , _sceneSettingsVersion{-1}
     , _shadowDepthProgram{}
     , _geometryProgram{}
     , _lightingProgram{}
@@ -158,9 +161,28 @@ void OpenGLWidget::initializeGL()
 
 void OpenGLWidget::paintGL()
 {
-    const auto averageWaterLevel{static_cast<float>(WaterLevel) + getAverageWaterWaveOffset()};
     const auto time{static_cast<float>(QDateTime::currentMSecsSinceEpoch() - _startingMSecs)
                     / 1000.0f};
+
+    const auto [sceneSettingsVersion, sceneSettingsData] = _sceneSettings.get();
+    const auto isSceneSettingsChanged{sceneSettingsVersion != _sceneSettingsVersion};
+    _sceneSettingsVersion = sceneSettingsVersion;
+
+    glm::vec3 sunDirection;
+    {
+        const auto altitude{glm::radians(sceneSettingsData.sunAltitude)};
+        const auto azimuth{glm::radians(sceneSettingsData.sunAzimuth)};
+        const auto cosAltitude{std::cos(altitude)};
+        sunDirection = glm::vec3{
+            cosAltitude * std::cos(azimuth),
+            std::sin(altitude),
+            cosAltitude * std::sin(azimuth),
+        };
+    }
+
+    const auto averageWaterLevel{
+        static_cast<float>(WaterLevel)
+        + getAverageWaterWaveOffset(sceneSettingsData.waterWaveAmplitudeScale)};
 
     std::optional<Camera> camera;
     {
@@ -168,9 +190,10 @@ void OpenGLWidget::paintGL()
         camera = _scene.player().getSyncedCamera();
     }
     ShadowMapCamera shadowMapCamera;
-    shadowMapCamera.update(glm::normalize(glm::vec3{1.5f, 1.0f, 2.0f}), *camera);
+    shadowMapCamera.update(sunDirection, *camera);
     const auto reflectionCamera{camera->createReflectionCamera(averageWaterLevel)};
-    const auto refractionCamera{camera->createRefractionCamera(averageWaterLevel, 1.1f)};
+    const auto refractionCamera{
+        camera->createRefractionCamera(averageWaterLevel, sceneSettingsData.waterRefractiveIndex)};
 
     // Update the UBO data.
     {
@@ -248,6 +271,11 @@ void OpenGLWidget::paintGL()
             }};
 
         _geometryProgram.use();
+        if (isSceneSettingsChanged) {
+            _geometryProgram.setUniform("u_waterWaveAmplitudeScale",
+                                        sceneSettingsData.waterWaveAmplitudeScale);
+        }
+
         _geometryProgram.setUniform("u_cameraIndex", 0);
         _geometryProgram.setUniform("u_isAboveWaterOnly", 0);
         _geometryProgram.setUniform("u_isUnderWaterOnly", 0);
@@ -264,7 +292,10 @@ void OpenGLWidget::paintGL()
 
         const auto waterLevel{
             static_cast<float>(WaterLevel)
-            + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z}, time)};
+                + getWaterWaveOffset(glm::vec2{cameraPosition.x, cameraPosition.z},
+                                     time,
+                                     sceneSettingsData.waterWaveAmplitudeScale),
+        };
         const auto isAboveWater{cameraPosition.y >= waterLevel};
 
         _geometryProgram.setUniform("u_cameraIndex", 1);
@@ -312,6 +343,11 @@ void OpenGLWidget::paintGL()
     });
 
     _lightingProgram.use();
+    if (isSceneSettingsChanged) {
+        _lightingProgram.setUniform("u_sunDirection", sunDirection);
+        _lightingProgram.setUniform("u_waterRefractiveIndex",
+                                    sceneSettingsData.waterRefractiveIndex);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     checkError();

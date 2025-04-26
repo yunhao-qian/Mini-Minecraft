@@ -25,9 +25,9 @@ constexpr float WaterWaveExponents[WaterWaveCount]{1.2f, 3.0f, 2.0f, 2.5f, 1.4f,
 
 } // namespace
 
-float getWaterWaveOffset(const glm::vec2 position, const float time)
+float getWaterWaveOffset(const glm::vec2 position, const float time, const float amplitudeScale)
 {
-    auto offset{-0.5f};
+    auto offset{0.0f};
     for (const auto i : std::views::iota(0, WaterWaveCount)) {
         const auto phase{glm::dot(WaterWaveAngularWaveVectors[i], position)
                              * WaterWaveAngularFrequencies[i]
@@ -35,26 +35,18 @@ float getWaterWaveOffset(const glm::vec2 position, const float time)
         offset += 2.0f * WaterWaveAmplitudes[i]
                   * std::pow((std::sin(phase) + 1.0f) * 0.5f, WaterWaveExponents[i]);
     }
-    return offset;
+    offset *= amplitudeScale;
+    return offset - 0.5f;
 }
 
-float getAverageWaterWaveOffset()
+float getAverageWaterWaveOffset(const float amplitudeScale)
 {
-    // std::pow() is not constexpr, so we have to compute it at runtime.
-
-    static auto isFirstCall{true};
-    static float averageOffset;
-
-    if (!isFirstCall) {
-        return averageOffset;
-    }
-    isFirstCall = false;
-
-    averageOffset = -0.5f;
+    auto offset{0.0f};
     for (const auto i : std::views::iota(0, WaterWaveCount)) {
-        averageOffset += 2.0f * WaterWaveAmplitudes[i] * std::pow(0.5f, WaterWaveExponents[i]);
+        offset += 2.0f * WaterWaveAmplitudes[i] * std::pow(0.5f, WaterWaveExponents[i]);
     }
-    return averageOffset;
+    offset *= amplitudeScale;
+    return offset - 0.5f;
 }
 
 } // namespace minecraft

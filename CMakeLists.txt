@@ -67,6 +67,9 @@ set(PROJECT_SOURCES
     src/player_info_window.cpp
     src/pose.h
     src/scene.h
+    src/scene_settings.h
+    src/scene_settings_window.h
+    src/scene_settings_window.cpp
     src/scope_guard.h
     src/shader_program.h
     src/shader_program.cpp

@@ -13,9 +13,6 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *const parent = nullptr);
-
-private:
-    OpenGLWidget *_openGLWidget;
 };
 
 } // namespace minecraft

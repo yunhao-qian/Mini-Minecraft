@@ -4,6 +4,7 @@
 #include "uniform_buffer_data.glsl"
 #include "water_wave.glsl"
 
+uniform float u_waterWaveAmplitudeScale;
 uniform int u_cameraIndex;
 uniform int u_isAboveWaterOnly;
 uniform int u_isUnderWaterOnly;
@@ -56,7 +57,10 @@ void main()
             tangentSpaceNormal.x = -tangentSpaceNormal.x;
             f_normal.xyz = normalize(v_viewSpaceTBNMatrix * tangentSpaceNormal);
         } else if (v_blockType == BlockTypeWater) {
-            f_normal.xyz = mat3(viewMatrix) * getWaterWaveNormal(v_worldSpacePosition.xz, u_time);
+            f_normal.xyz = mat3(viewMatrix)
+                           * getWaterWaveNormal(v_worldSpacePosition.xz,
+                                                u_time,
+                                                u_waterWaveAmplitudeScale);
         } else {
             f_normal.xyz = viewSpaceNormal;
         }
