@@ -73,7 +73,7 @@ void GeometryFramebuffer::resize(const int width, const int height)
     }
     context->glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderbuffer.get());
     context->checkError();
-    context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, _width, _height);
+    context->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, _width, _height);
     context->checkError();
     context->glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                        GL_DEPTH_ATTACHMENT,

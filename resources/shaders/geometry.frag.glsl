@@ -34,7 +34,7 @@ void main()
 
     mat4 viewMatrix = u_viewMatrices[u_cameraIndex];
 
-    f_depth = length((viewMatrix * vec4(v_worldSpacePosition, 1.0)).xyz);
+    f_depth = -(viewMatrix * vec4(v_worldSpacePosition, 1.0)).z;
 
     vec3 textureCoords = vec3(v_textureCoords, float(v_textureIndex));
     vec3 viewSpaceNormal = v_viewSpaceTBNMatrix[2];

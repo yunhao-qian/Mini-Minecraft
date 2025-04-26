@@ -144,7 +144,7 @@ RayMarchResult rayMarch(vec3 fromViewSpacePosition,
         }
 
         geometryDepth = texture(depthTexture, textureCoords).r;
-        rayDepth = length(viewSpacePosition);
+        rayDepth = -viewSpacePosition.z;
 
         if (geometryDepth < rayDepth) {
             // Step back.
@@ -190,7 +190,7 @@ RayMarchResult rayMarch(vec3 fromViewSpacePosition,
         textureCoords = clipSpacePosition.xy * 0.5 + 0.5;
 
         geometryDepth = texture(depthTexture, textureCoords).r;
-        rayDepth = length(viewSpacePosition);
+        rayDepth = -viewSpacePosition.z;
     }
     return RayMarchResult(hasHitOccurred, rayDepth, normalize(viewSpacePosition), textureCoords);
 }
@@ -302,7 +302,7 @@ vec3 getOpaqueFragmentColorWithMediumEffects(float depth,
             mediumType = blockTypeFromFloat(albedoData.a);
         }
 
-        vec3 viewSpacePosition = viewSpaceDirection * depth;
+        vec3 viewSpacePosition = viewSpaceDirection * (depth / -viewSpaceDirection.z);
         vec3 viewSpaceNormal = normalize(texture(normalTexture, textureCoords).xyz);
 
         vec3 lightColor = getDirectionalLightColor(viewSpaceNormal, viewSpaceSunDirection);
@@ -391,7 +391,8 @@ void main()
             reflectionCoefficient = 0.5 * (fs * fs + fp * fp);
         }
 
-        vec3 viewSpaceWaterPosition = viewSpaceDirection * translucentDepth;
+        float translucentDistance = translucentDepth / -viewSpaceDirection.z;
+        vec3 viewSpaceWaterPosition = viewSpaceDirection * translucentDistance;
 
         vec3 reflectedColor = vec3(0.0);
         {
@@ -449,7 +450,7 @@ void main()
         int mediumType = blockTypeFromFloat(texture(u_translucentAlbedoTexture, v_textureCoords).a);
         f_color.rgb = applyMediumEffects(mediumType,
                                          surfaceColor,
-                                         translucentDepth,
+                                         translucentDistance,
                                          viewSpaceDirection,
                                          viewSpaceSunDirection);
     }
