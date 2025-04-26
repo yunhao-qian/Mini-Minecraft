@@ -31,6 +31,14 @@ void main()
             discard;
         }
     }
+    if (!gl_FrontFacing) {
+        if (v_blockType != BlockTypeWater && v_blockType != BlockTypeLava) {
+            // The back face of a solid block is not rendered. This is not for performance, but to
+            // prevent the back face from being accidentally on the top due to depth precision
+            // issues.
+            discard;
+        }
+    }
 
     mat4 viewMatrix = u_viewMatrices[u_cameraIndex];
 
