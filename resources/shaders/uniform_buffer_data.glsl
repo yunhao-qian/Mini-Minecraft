@@ -19,6 +19,8 @@ layout(std140) uniform UniformBufferData
     mat4 u_mainToShadowViewMatrices[ShadowMapCascadeCount];
     mat4 u_mainToShadowViewProjectionMatrices[ShadowMapCascadeCount];
 
+    vec4 u_shadowMapDepthBlurScales[ShadowMapCascadeCount];
+
     mat4 u_viewMatrixInverse;
     mat4 u_projectionMatrixInverse;
 

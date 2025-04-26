@@ -27,6 +27,9 @@ struct UniformBufferData
     glm::mat4 mainToShadowViewMatrices[ShadowMapCascadeCount];
     glm::mat4 mainToShadowViewProjectionMatrices[ShadowMapCascadeCount];
 
+    // Use vec4 instead of vec2 to avoid alignment issues.
+    glm::vec4 shadowMapDepthBlurScales[ShadowMapCascadeCount];
+
     glm::mat4 viewMatrixInverse;
     glm::mat4 projectionMatrixInverse;
 

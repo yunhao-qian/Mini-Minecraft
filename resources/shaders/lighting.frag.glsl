@@ -61,10 +61,93 @@ struct DepthMapResult
 DepthMapResult sampleDepthMap(vec2 textureCoords, int cascadeIndex, float shadowViewSpaceZ)
 {
     vec3 sampleCoords = vec3(textureCoords, float(cascadeIndex));
+
+    // The amount of blurring is proportional to the distance between the shadow-casting object and
+    // the shadow receiver.
+    float centerShadowDepth = texture(u_shadowDepthTexture, sampleCoords).r;
+    float centerDepthDifference = clamp(-shadowViewSpaceZ - centerShadowDepth, 1.0, 100.0);
+
+    // Sample the average depth and depth squared in a larger neighborhood.
     DepthMapResult result;
-    vec4 depthData = texture(u_shadowDepthTexture, sampleCoords);
-    result.depth = depthData.r;
-    result.depthSquared = depthData.g;
+    result.depth = 0.0;
+    result.depthSquared = 0.0;
+    {
+        const int PoisonSampleCount = 64;
+        const float Multiplier = 1.0 / float(PoisonSampleCount);
+        const vec2 PoissonDisk[PoisonSampleCount] = vec2[](vec2(-0.268162, 0.963373),
+                                                           vec2(0.184829, -0.907099),
+                                                           vec2(-0.909545, -0.349339),
+                                                           vec2(0.785118, 0.078684),
+                                                           vec2(-0.264434, 0.264612),
+                                                           vec2(0.451911, 0.794221),
+                                                           vec2(-0.797057, 0.327004),
+                                                           vec2(-0.281018, -0.412816),
+                                                           vec2(0.590372, -0.458336),
+                                                           vec2(-0.016768, -0.053056),
+                                                           vec2(0.882930, -0.227795),
+                                                           vec2(0.010505, 0.652915),
+                                                           vec2(-0.247481, -0.832999),
+                                                           vec2(0.396323, 0.072193),
+                                                           vec2(0.236256, -0.283675),
+                                                           vec2(0.335115, -0.655360),
+                                                           vec2(-0.630958, -0.581301),
+                                                           vec2(0.187185, 0.358205),
+                                                           vec2(-0.691275, -0.037720),
+                                                           vec2(0.787785, 0.577194),
+                                                           vec2(-0.503022, 0.487893),
+                                                           vec2(-0.151739, 0.472888),
+                                                           vec2(-0.580189, 0.796109),
+                                                           vec2(-0.481153, -0.240615),
+                                                           vec2(-0.462645, 0.083268),
+                                                           vec2(0.598832, 0.389393),
+                                                           vec2(-0.361799, 0.657831),
+                                                           vec2(0.536547, -0.164466),
+                                                           vec2(0.885464, 0.299293),
+                                                           vec2(0.651634, -0.742260),
+                                                           vec2(0.233854, 0.962372),
+                                                           vec2(0.788198, -0.540091),
+                                                           vec2(-0.038986, -0.790140),
+                                                           vec2(-0.896057, 0.082593),
+                                                           vec2(-0.635764, 0.579397),
+                                                           vec2(-0.672952, -0.217837),
+                                                           vec2(-0.460501, -0.885826),
+                                                           vec2(-0.005650, 0.235694),
+                                                           vec2(-0.239609, -0.202354),
+                                                           vec2(-0.028256, -0.486447),
+                                                           vec2(0.188953, -0.006466),
+                                                           vec2(0.329823, 0.590900),
+                                                           vec2(-0.821751, 0.510541),
+                                                           vec2(0.926230, 0.099059),
+                                                           vec2(0.018844, 0.993394),
+                                                           vec2(0.432647, -0.855831),
+                                                           vec2(-0.588625, -0.757227),
+                                                           vec2(-0.645142, 0.090054),
+                                                           vec2(0.491468, -0.595039),
+                                                           vec2(-0.822799, -0.558776),
+                                                           vec2(-0.476589, -0.506042),
+                                                           vec2(-0.486940, 0.308349),
+                                                           vec2(-0.522408, -0.097521),
+                                                           vec2(0.607207, 0.010414),
+                                                           vec2(-0.329584, -0.652477),
+                                                           vec2(0.093296, -0.239199),
+                                                           vec2(0.507924, 0.609814),
+                                                           vec2(0.547759, 0.203847),
+                                                           vec2(0.221560, -0.438634),
+                                                           vec2(-0.976587, -0.155931),
+                                                           vec2(0.411172, 0.376810),
+                                                           vec2(0.976072, -0.091997),
+                                                           vec2(0.160935, -0.721607),
+                                                           vec2(0.707924, -0.121700));
+
+        vec2 blurRadius = u_shadowMapDepthBlurScales[cascadeIndex].xy * centerDepthDifference;
+        for (int i = 0; i < PoisonSampleCount; ++i) {
+            sampleCoords.xy = textureCoords + PoissonDisk[i] * blurRadius;
+            vec4 depthData = texture(u_shadowDepthTexture, sampleCoords);
+            result.depth += depthData.r * Multiplier;
+            result.depthSquared += depthData.g * Multiplier;
+        }
+    }
+
     return result;
 }
 

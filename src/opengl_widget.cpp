@@ -190,6 +190,7 @@ void OpenGLWidget::paintGL()
             .shadowViewProjectionMatrices{},
             .mainToShadowViewMatrices{},
             .mainToShadowViewProjectionMatrices{},
+            .shadowMapDepthBlurScales{},
             .viewMatrixInverse{viewMatrixInverse},
             .projectionMatrixInverse{glm::inverse(camera->projectionMatrix())},
             .reflectionProjectionMatrix{reflectionCamera.projectionMatrix()},
@@ -209,6 +210,8 @@ void OpenGLWidget::paintGL()
             uboData.mainToShadowViewMatrices[cascadeIndex] = shadowViewMatrix * viewMatrixInverse;
             uboData.mainToShadowViewProjectionMatrices[cascadeIndex] = shadowViewProjectionMatrix
                                                                        * viewMatrixInverse;
+            uboData.shadowMapDepthBlurScales[cascadeIndex]
+                = glm::vec4{shadowMapCamera.getDepthBlurScale(cascadeIndex), 0.0f, 0.0f};
         }
         glBindBuffer(GL_UNIFORM_BUFFER, _ubo.get());
         checkError();
