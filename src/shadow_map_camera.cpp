@@ -88,7 +88,8 @@ void ShadowMapCamera::update(const glm::vec3 &lightDirection, const Camera &came
 
 glm::vec2 ShadowMapCamera::getDepthBlurScale(const int cascadeIndex) const
 {
-    const glm::vec2 viewSpaceScale{0.2f};
+    // In the current implementation, this scale has to be very small to avoid light bleeding.
+    const glm::vec2 viewSpaceScale{0.05f};
     const auto &projectionMatrix{_projectionMatrices[cascadeIndex]};
     const auto clipSpaceScale{viewSpaceScale
                               * glm::vec2{projectionMatrix[0][0], projectionMatrix[1][1]}};
