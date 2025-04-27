@@ -32,26 +32,29 @@ MainWindow::MainWindow(QWidget *const parent)
     const auto cameraControlsWindow{new CameraControlsWindow{this}};
     cameraControlsWindow->setWindowFlag(Qt::Dialog);
 
-    const auto actionQuit{new QAction{"Quit", this}};
+    const auto actionQuit{new QAction{QIcon{":/icons/close.ico"}, "Quit", this}};
     {
         const auto menuFile{menuBar()->addMenu("File")};
         menuFile->addAction(actionQuit);
     }
 
-    const auto actionSceneSettings{new QAction{"Scene Settings", this}};
+    const auto actionSceneSettings{
+        new QAction{QIcon{":/icons/settings.ico"}, "Scene Settings", this}};
     {
         const auto menuEdit{menuBar()->addMenu("Edit")};
         menuEdit->addAction(actionSceneSettings);
     }
 
-    const auto actionPlayerInfo{new QAction{"Player Information", this}};
+    const auto actionPlayerInfo{
+        new QAction{QIcon{":/icons/person.ico"}, "Player Information", this}};
     actionPlayerInfo->setCheckable(true);
     {
         const auto menuView{menuBar()->addMenu("View")};
         menuView->addAction(actionPlayerInfo);
     }
 
-    const auto actionCameraControls{new QAction{"Camera Controls", this}};
+    const auto actionCameraControls{
+        new QAction{QIcon{":/icons/camera.ico"}, "Camera Controls", this}};
     {
         const auto menuHelp{menuBar()->addMenu("Help")};
         menuHelp->addAction(actionCameraControls);
