@@ -20,7 +20,7 @@ int main(int argc, char **const argv)
     }
 
     MainWindow window;
-    window.show();
+    window.setVisible(true);
 
     return app.exec();
 }

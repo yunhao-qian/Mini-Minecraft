@@ -14,7 +14,7 @@ MainWindow::MainWindow(QWidget *const parent)
     : QMainWindow{parent}
 {
     setWindowTitle("Mini Minecraft");
-    resize(1280, 960);
+    setWindowState(Qt::WindowFullScreen);
 
     const auto openGLWidget{new OpenGLWidget{}};
     setCentralWidget(openGLWidget);
