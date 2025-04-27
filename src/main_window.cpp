@@ -6,6 +6,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QIcon>
 #include <QMenuBar>
 
 namespace minecraft {
@@ -15,6 +16,7 @@ MainWindow::MainWindow(QWidget *const parent)
 {
     setWindowTitle("Mini Minecraft");
     setWindowState(Qt::WindowFullScreen);
+    setWindowIcon(QIcon{":/icons/minecraft.ico"});
 
     const auto openGLWidget{new OpenGLWidget{}};
     setCentralWidget(openGLWidget);

@@ -1,0 +1,3 @@
+// Resource file for the app icon on Windows
+
+IDI_ICON1 ICON "minecraft.ico"

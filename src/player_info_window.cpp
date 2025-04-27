@@ -2,6 +2,7 @@
 
 #include <QFontDatabase>
 #include <QFormLayout>
+#include <QIcon>
 #include <QString>
 
 #include <array>
@@ -46,6 +47,7 @@ PlayerInfoWindow::PlayerInfoWindow(QWidget *const parent)
     , _terrainZoneLabel{nullptr}
 {
     setWindowTitle("Player Information");
+    setWindowIcon(QIcon{":/icons/person.ico"});
 
     const auto labelPointers{std::to_array<QLabel **>({
         &_positionLabel,

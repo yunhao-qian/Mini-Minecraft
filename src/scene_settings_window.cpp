@@ -1,6 +1,7 @@
 #include "scene_settings_window.h"
 
 #include <QFormLayout>
+#include <QIcon>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -17,6 +18,7 @@ SceneSettingsWindow::SceneSettingsWindow(SceneSettings *const settings, QWidget 
     , _waterWaveAmplitudeScaleSpinBox{nullptr}
 {
     setWindowTitle("Scene Settings");
+    setWindowIcon(QIcon{":/icons/settings.ico"});
 
     const auto settingsData{_settings->get().second};
 

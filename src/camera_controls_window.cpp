@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QVBoxLayout>
 
@@ -13,6 +14,7 @@ CameraControlsWindow::CameraControlsWindow(QWidget *const parent)
     : QWidget{parent}
 {
     setWindowTitle("Camera Controls");
+    setWindowIcon(QIcon{":/icons/camera.ico"});
 
     const auto mainLayout{new QHBoxLayout{this}};
     {

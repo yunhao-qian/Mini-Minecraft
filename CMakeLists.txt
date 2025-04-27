@@ -108,7 +108,7 @@ foreach(SHADER_SOURCE
 )
     set(SHADER_SOURCE_FULL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/${SHADER_SOURCE}")
     list(APPEND ALL_SHADER_SOURCES "${SHADER_SOURCE_FULL_PATH}")
-    if (SHADER_SOURCE MATCHES "\\.(vert|frag)\\.glsl$")
+    if(SHADER_SOURCE MATCHES "\\.(vert|frag)\\.glsl$")
         list(APPEND ENTRY_POINT_SHADER_SOURCES "${SHADER_SOURCE_FULL_PATH}")
     endif()
 endforeach()
@@ -155,19 +155,32 @@ add_custom_target(preprocess-shaders ALL DEPENDS ${PREPROCESSED_SHADER_SOURCES})
 add_dependencies(mini-minecraft preprocess-shaders)
 
 option(MINECRAFT_NO_GL_ERROR_CHECK "Disable OpenGLContext::checkError()" ON)
-if (MINECRAFT_NO_GL_ERROR_CHECK)
+if(MINECRAFT_NO_GL_ERROR_CHECK)
     target_compile_definitions(mini-minecraft PRIVATE MINECRAFT_NO_GL_ERROR_CHECK)
 endif()
 
 target_link_libraries(mini-minecraft PRIVATE glm::glm Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Widgets)
 
-set_target_properties(mini-minecraft PROPERTIES
-    ${BUNDLE_ID_OPTION}
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
-)
+if(WIN32)
+    target_sources(mini-minecraft PRIVATE resources/icons/app_icon_windows.rc)
+    set_target_properties(mini-minecraft PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+elseif(APPLE)
+    set(APP_ICON_FILE resources/icons/app_icon_macos.icns)
+    target_sources(mini-minecraft PRIVATE ${APP_ICON_FILE})
+    set_source_files_properties(${APP_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(mini-minecraft PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Mini Minecraft"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_COPYRIGHT "© 2025, Yunhao Qian"
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.yunhao-qian.mini-minecraft
+        MACOSX_BUNDLE_ICON_FILE app_icon_macos
+        MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    )
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS mini-minecraft
