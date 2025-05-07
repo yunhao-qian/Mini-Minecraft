@@ -1,0 +1,14 @@
+# Build directories
+/build*/
+
+# Qt Creator
+CMakeLists.txt.user
+
+# Visual Studio Code
+/.vscode/
+
+# clangd
+/.cache/
+
+# macOS
+.DS_Store
