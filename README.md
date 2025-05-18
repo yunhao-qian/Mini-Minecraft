@@ -6,7 +6,7 @@ This project implements a Qt-based C++ application that renders an interactive M
 
 Here is a demo video about this application [on YouTube](https://www.youtube.com/watch?v=PiAYUEdfHoc).
 
-[![Video cover](./images/video_cover.png)](https://www.youtube.com/watch?v=PiAYUEdfHoc)
+[![Video cover](./images/video_cover.jpg)](https://www.youtube.com/watch?v=PiAYUEdfHoc)
 
 ## Features
 
